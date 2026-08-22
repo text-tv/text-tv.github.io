@@ -236,6 +236,21 @@ describe('sidor som inte går att visa', () => {
     expect(window.localStorage.getItem('texttv:page:377')).toBeNull()
   })
 
+  it('påstår inte att den hämtar när hämtningen är klar', async () => {
+    openOn('200')
+    await screen.findByText('Sidan ej i sändning')
+
+    expect(screen.queryByText('Hämtar…')).not.toBeInTheDocument()
+  })
+
+  it('påstår inte att den hämtar när hämtningen misslyckats', async () => {
+    failNextFor('104')
+    openOn('104')
+    await screen.findByText('Kunde inte hämta sidan')
+
+    expect(screen.queryByText('Hämtar…')).not.toBeInTheDocument()
+  })
+
   // AE7
   it('skiljer ett nätverksfel från en sida som inte sänds, och går att försöka igen', async () => {
     failNextFor('104')
