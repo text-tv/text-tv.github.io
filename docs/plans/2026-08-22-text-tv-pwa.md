@@ -152,6 +152,8 @@ read, so that loss is the decisive one.
 - R33. The rendered content always carries a visible indication of when it was
   last updated, so a cached frame is never mistaken for a live one.
 - R34. With no network, the last-seen version of a visited page still renders.
+  A transport failure never discards a cached copy; a confirmed not-broadcast
+  response does replace it, and the copy is forgotten.
 - R35. Returning the app to the foreground revalidates the current page when its
   data is older than about 60 seconds.
 - R36. The app does not poll and does not prefetch linked pages.
@@ -212,6 +214,9 @@ credentials in this environment.
   200. Covers R39, R40.
 - AE7. Given the network fails, the error shown is distinct from
   "Sidan ej i sändning" and a retry button is present. Covers R41.
+- AE10. Given page 377 is cached and SVT has since taken it off air, when the
+  reader opens 377 the frame is replaced by "Sidan ej i sändning" with its
+  neighbours, and the cached copy is discarded. Covers R34, R39, R40.
 - AE8. Given page 100 was last visited two hours ago, when the app launches it
   displays page 100; given it was last visited ten minutes ago on page 377, the
   app displays page 377. Covers R37.

@@ -116,6 +116,16 @@ function oldestPage(index: FetchedIndex, exclude: PageNumber): PageNumber | unde
   return oldestKey
 }
 
+/** Forgets a stored page, so nothing repaints it later. */
+export function removePage(pageNumber: PageNumber): void {
+  const store = storage()
+  if (!store) return
+  store.removeItem(PAGE_PREFIX + pageNumber)
+  const index = readFetchedIndex(store)
+  delete index[pageNumber]
+  writeFetchedIndex(store, index)
+}
+
 export function readLastVisited(): LastVisited | undefined {
   const store = storage()
   if (!store) return undefined
