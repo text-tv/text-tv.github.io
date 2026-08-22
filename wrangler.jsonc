@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "text-tv",
+  // Cloudflare Workers static assets. Pages is legacy for new projects.
+  "compatibility_date": "2026-08-22",
+  "assets": {
+    "directory": "./dist",
+    // Hash routing means every path is the same document.
+    "not_found_handling": "single-page-application"
+  }
+}

@@ -3,8 +3,6 @@
 Progressive web app wrapping **SVT Text** (Swedish teletext) in a modern,
 installable, mobile-friendly UI.
 
-> Starter file — the repo is empty. Fill in / correct sections as the code lands.
-
 ## Stack
 
 - **React** + **TypeScript**
@@ -27,16 +25,31 @@ installable, mobile-friendly UI.
 
 ## Commands
 
-_To be filled once package.json exists. Expected:_
-
 - `npm install` — install deps
-- `npm run dev` — Vite dev server
+- `npm run mock` — regenerate `mock/db.json` from `fixtures/` and serve it on :3001
+- `npm run dev` — Vite dev server, pointed at the mock by `.env.development`
+- `npm test` — Vitest, once
 - `npm run build` — typecheck + production build
 - `npm run preview` — serve the production build
+- `npm run icons` — regenerate `public/*.png`
+- `npm run deploy` — build + `wrangler deploy`
+
+Development runs against a local `json-server` mock rather than the live API.
+`fixtures/raw_*.json` are captured real responses and are the single source of
+truth — `mock/db.json` is generated from them and the tests read them directly.
+Production has no `VITE_SVT_API_BASE` override, so it uses the real endpoint.
 
 ## Conventions
 
-- Keep the SVT API client isolated (e.g. `src/api.ts`) with typed responses.
+- Keep the SVT API client isolated in `src/api.ts` with typed responses. It is
+  the only module that knows SVT's wire format; everything above it consumes
+  the three normalised outcomes in `src/api.types.ts`.
+- Success is decided by the payload's `status` field, never by the HTTP status
+  code — the API answers 200 for pages that are not broadcast.
+- Test at the app level with the network faked at the HTTP boundary (`msw` +
+  the captured fixtures). Do not unit-test the API client or individual
+  components; `src/imageMap.ts` is the one exception, as a pure function.
+- All user-visible strings are Swedish, inline. No i18n framework.
 - Use hash-based routing (`#100`) so page numbers are shareable and the browser
   back button works.
 - Style teletext frames with `image-rendering: pixelated`; respect safe-area
