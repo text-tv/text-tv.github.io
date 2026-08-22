@@ -1,4 +1,4 @@
-import { FRAME_HEIGHT, FRAME_WIDTH, type PageNumber } from './api.types'
+import { FRAME_HEIGHT, FRAME_WIDTH, isPageNumber, type PageNumber } from './api.types'
 
 /**
  * One clickable page reference printed in a teletext frame.
@@ -50,7 +50,7 @@ export function parseImageMap(
 
   for (const [, tag] of map.matchAll(AREA)) {
     const { coords, href } = attributes(tag)
-    if (!href || !/^\d{3}$/.test(href)) continue
+    if (!href || !isPageNumber(href)) continue
 
     const numbers = (coords ?? '').split(',').map((part) => Number(part.trim()))
     if (numbers.length !== 4 || !numbers.every(Number.isFinite)) continue

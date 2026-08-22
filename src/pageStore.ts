@@ -1,4 +1,4 @@
-import type { PageNumber, PageResult } from './api.types'
+import { isPageNumber, type PageNumber, type PageResult } from './api.types'
 
 /**
  * Last-seen pages, so a visited page paints instantly and still renders with
@@ -7,6 +7,19 @@ import type { PageNumber, PageResult } from './api.types'
  */
 const PAGE_PREFIX = 'texttv:page:'
 const LAST_VISITED_KEY = 'texttv:last'
+/**
+ * page number -> when it was last fetched. Kept apart from the pages
+ * themselves so answering "how old is this?" does not mean parsing a
+ * megabyte of base64 GIF. It may drift from the pages if a write fails; both
+ * directions of drift resolve to a refetch, which is the safe answer.
+ */
+const FETCHED_KEY = 'texttv:fetched'
+/**
+ * How many stored pages one write may evict before giving up. A page too
+ * large to ever fit would otherwise empty the whole cache one entry at a time
+ * and still fail, costing the reader every page they could read offline.
+ */
+const MAX_EVICTIONS = 3
 
 export interface StoredPage {
   result: PageResult
@@ -37,6 +50,25 @@ const parse = <T>(raw: string | null): T | undefined => {
   }
 }
 
+type FetchedIndex = Record<PageNumber, number>
+
+const readFetchedIndex = (store: Storage): FetchedIndex =>
+  parse<FetchedIndex>(store.getItem(FETCHED_KEY)) ?? {}
+
+const writeFetchedIndex = (store: Storage, index: FetchedIndex): void => {
+  try {
+    store.setItem(FETCHED_KEY, JSON.stringify(index))
+  } catch {
+    // The index is an optimisation; losing it only costs an extra fetch.
+  }
+}
+
+/** When the stored copy of a page was fetched, or 0 if there is none. */
+export function fetchedAt(pageNumber: PageNumber): number {
+  const store = storage()
+  return store ? (readFetchedIndex(store)[pageNumber] ?? 0) : 0
+}
+
 export function readPage(pageNumber: PageNumber): StoredPage | undefined {
   const store = storage()
   if (!store) return undefined
@@ -45,34 +77,41 @@ export function readPage(pageNumber: PageNumber): StoredPage | undefined {
 }
 
 /** Evicts least-recently-fetched pages until the write fits, then gives up. */
-export function writePage(pageNumber: PageNumber, result: PageResult, fetchedAt: number): void {
+export function writePage(pageNumber: PageNumber, result: PageResult, at: number): void {
   const store = storage()
   if (!store) return
-  const entry = JSON.stringify({ result, fetchedAt } satisfies StoredPage)
+  const entry = JSON.stringify({ result, fetchedAt: at } satisfies StoredPage)
+  const index = readFetchedIndex(store)
 
-  for (;;) {
+  for (let evicted = 0; ; evicted += 1) {
     try {
       store.setItem(PAGE_PREFIX + pageNumber, entry)
+      index[pageNumber] = at
+      writeFetchedIndex(store, index)
       return
     } catch {
-      const oldest = oldestPageKey(store, PAGE_PREFIX + pageNumber)
-      if (!oldest) return
-      store.removeItem(oldest)
+      const oldest = evicted < MAX_EVICTIONS ? oldestPage(index, pageNumber) : undefined
+      if (!oldest) {
+        // Out of room, or out of patience. Keep what is already cached and go
+        // without this page rather than trading the cache for nothing.
+        store.removeItem(PAGE_PREFIX + pageNumber)
+        writeFetchedIndex(store, index)
+        return
+      }
+      store.removeItem(PAGE_PREFIX + oldest)
+      delete index[oldest]
     }
   }
 }
 
-function oldestPageKey(store: Storage, exclude: string): string | undefined {
-  let oldestKey: string | undefined
+/** Least recently fetched, read from the index so no GIF is parsed. */
+function oldestPage(index: FetchedIndex, exclude: PageNumber): PageNumber | undefined {
+  let oldestKey: PageNumber | undefined
   let oldestAt = Infinity
-  for (let index = 0; index < store.length; index += 1) {
-    const key = store.key(index)
-    if (!key?.startsWith(PAGE_PREFIX) || key === exclude) continue
-    const at = parse<StoredPage>(store.getItem(key))?.fetchedAt ?? 0
-    if (at < oldestAt) {
-      oldestAt = at
-      oldestKey = key
-    }
+  for (const [page, at] of Object.entries(index)) {
+    if (page === exclude || at >= oldestAt) continue
+    oldestAt = at
+    oldestKey = page
   }
   return oldestKey
 }
@@ -81,7 +120,7 @@ export function readLastVisited(): LastVisited | undefined {
   const store = storage()
   if (!store) return undefined
   const stored = parse<LastVisited>(store.getItem(LAST_VISITED_KEY))
-  return /^\d{3}$/.test(stored?.pageNumber ?? '') ? stored : undefined
+  return isPageNumber(stored?.pageNumber ?? '') ? stored : undefined
 }
 
 export function writeLastVisited(pageNumber: PageNumber, at: number): void {

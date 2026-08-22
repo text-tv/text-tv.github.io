@@ -1,7 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
-import { failNextFor, stopFailing } from './test/server'
+import { failNextFor, republish, stopFailing } from './test/server'
+
+/** The same clock format the freshness bar renders. */
+const shownAs = (iso: string) =>
+  `Uppdaterad ${new Date(iso).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}`
 
 const openOn = (pageNumber?: string) => {
   if (pageNumber) window.location.hash = pageNumber
@@ -50,6 +54,15 @@ describe('länkar i bilden', () => {
     expect(window.location.hash).toBe('#106')
   })
 
+  it('markerar länken direkt när den trycks', async () => {
+    openOn('100')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+
+    await userEvent.click(screen.getByLabelText('Sida 106'))
+
+    expect(document.querySelector('.hotspot-mark--flash')).toBeInTheDocument()
+  })
+
   // AE2
   it('tar bakåtgesten tillbaka till sidan man kom från', async () => {
     openOn('100')
@@ -60,6 +73,72 @@ describe('länkar i bilden', () => {
     window.history.back()
 
     await currentPage('100')
+  })
+})
+
+describe('överlappande länkar', () => {
+  /**
+   * The frame is 520x400. happy-dom has no layout, so the hotspot layer is
+   * given a real rect; without one the capture handler bails out and the
+   * click falls through to whichever button the DOM happens to hit, which is
+   * exactly the resolution this test exists to pin.
+   */
+  const giveTheFrameALayout = (scale = 1) => {
+    const layer = document.querySelector('.hotspots') as HTMLElement
+    layer.getBoundingClientRect = () =>
+      ({ x: 0, y: 0, left: 0, top: 0, width: 520 * scale, height: 400 * scale }) as DOMRect
+    return layer
+  }
+
+  const tapAt = (layer: HTMLElement, clientX: number, clientY: number) => {
+    layer.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, clientX, clientY }),
+    )
+  }
+
+  it('väljer länken närmast fingret, inte den som råkar ligga överst', async () => {
+    openOn('100')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+    const layer = giveTheFrameALayout()
+
+    // Page 100 prints 106 at y 144-160 and 107 at y 208-224. Expanded to 44px
+    // both targets are wide open; the touch below sits nearest 106's centre.
+    tapAt(layer, 240, 152)
+
+    await currentPage('106')
+  })
+
+  it('väljer den andra länken när fingret ligger närmare den', async () => {
+    openOn('100')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+    const layer = giveTheFrameALayout()
+
+    tapAt(layer, 266, 216)
+
+    await currentPage('107')
+  })
+
+  it('gör ingenting när fingret ligger utanför alla länkar', async () => {
+    openOn('100')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+    const layer = giveTheFrameALayout()
+
+    tapAt(layer, 10, 380)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('100')
+  })
+
+  it('följer bilden när den skalas ned', async () => {
+    openOn('100')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+    // A phone renders the frame at roughly 0.75x; the same printed reference
+    // must still be reachable at the scaled-down coordinates.
+    const layer = giveTheFrameALayout(0.75)
+
+    tapAt(layer, 240 * 0.75, 152 * 0.75)
+
+    await currentPage('106')
   })
 })
 
@@ -175,9 +254,104 @@ describe('färskhet och cache', () => {
     expect(screen.queryByText('Kunde inte hämta sidan')).not.toBeInTheDocument()
   })
 
+  it('hämtar om sidan när appen kommer tillbaka och innehållet hunnit bli gammalt', async () => {
+    const first = '2026-08-22T08:00:00.000Z'
+    const second = '2026-08-22T09:30:00.000Z'
+    republish('100', first)
+    openOn('100')
+    await screen.findByText(shownAs(first))
+
+    // Age the stored copy past the revalidation window, then come back to a
+    // page SVT has republished since.
+    const index = JSON.parse(window.localStorage.getItem('texttv:fetched')!)
+    index['100'] = Date.now() - 5 * 60 * 1000
+    window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+    republish('100', second)
+
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    expect(await screen.findByText(shownAs(second))).toBeInTheDocument()
+  })
+
+  it('hämtar inte om sidan när innehållet nyss hämtades', async () => {
+    const first = '2026-08-22T08:00:00.000Z'
+    republish('100', first)
+    openOn('100')
+    await screen.findByText(shownAs(first))
+
+    republish('100', '2026-08-22T09:30:00.000Z')
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(screen.getByText(shownAs(first))).toBeInTheDocument()
+  })
+
   it('säger när innehållet uppdaterades', async () => {
     openOn('100')
     expect(await screen.findByText(/^Uppdaterad \d\d:\d\d$/)).toBeInTheDocument()
+  })
+})
+
+describe('när lagringen är full', () => {
+  /**
+   * A stand-in localStorage whose page writes always fail, the way a full one
+   * does. happy-dom's own storage is a Proxy that ignores both instance and
+   * prototype patching, so the whole object is swapped instead.
+   */
+  const useFullStore = (seeded: Record<string, string>) => {
+    const entries = new Map(Object.entries(seeded))
+    const attempted: string[] = []
+    const fake: Storage = {
+      get length() {
+        return entries.size
+      },
+      key: (index) => [...entries.keys()][index] ?? null,
+      getItem: (key) => entries.get(key) ?? null,
+      removeItem: (key) => void entries.delete(key),
+      clear: () => entries.clear(),
+      setItem: (key, value) => {
+        attempted.push(key)
+        if (key.startsWith('texttv:page:')) throw new DOMException('full', 'QuotaExceededError')
+        entries.set(key, String(value))
+      },
+    }
+    realStorage ??= Object.getOwnPropertyDescriptor(window, 'localStorage')
+    Object.defineProperty(window, 'localStorage', { value: fake, configurable: true })
+    return { attempted, entries }
+  }
+
+  let realStorage: PropertyDescriptor | undefined
+
+  afterEach(() => {
+    // Give the rest of the suite happy-dom's real storage back.
+    if (realStorage) Object.defineProperty(window, 'localStorage', realStorage)
+    realStorage = undefined
+  })
+
+  const cached = (pages: string[]) =>
+    Object.fromEntries([
+      ['texttv:fetched', JSON.stringify(Object.fromEntries(pages.map((p, i) => [p, i + 1])))],
+      ...pages.map((p) => [`texttv:page:${p}`, '{"result":{"kind":"page"},"fetchedAt":1}']),
+    ])
+
+  it('visar sidan ändå när den inte får plats', async () => {
+    const { attempted, entries } = useFullStore({})
+    openOn('331')
+
+    await waitFor(() => expect(frames()).toHaveLength(14), { timeout: 5000 })
+    expect(attempted).toContain('texttv:page:331')
+    expect(entries.has('texttv:page:331')).toBe(false)
+  })
+
+  it('offrar inte hela cachen för en sida som ändå inte får plats', async () => {
+    const pages = ['101', '102', '103', '104', '105', '106', '107', '108']
+    const { entries } = useFullStore(cached(pages))
+    openOn('331')
+
+    await waitFor(() => expect(frames()).toHaveLength(14), { timeout: 5000 })
+
+    const survivors = pages.filter((p) => entries.has(`texttv:page:${p}`))
+    expect(survivors.length).toBeGreaterThanOrEqual(pages.length - 3)
   })
 })
 

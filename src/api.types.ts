@@ -5,6 +5,8 @@ export const FRAME_HEIGHT = 400
 /** A three-digit teletext page number, e.g. "100". */
 export type PageNumber = string
 
+export const isPageNumber = (value: string): boolean => /^\d{3}$/.test(value)
+
 export interface SubPage {
   /** e.g. "100-01". */
   subPageNumber: string

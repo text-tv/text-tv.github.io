@@ -7,7 +7,8 @@ import { HOME_PAGE, useTextTv } from './useTextTv'
 
 export function App() {
   const { pageNumber, result, stale, updatedAt, navigate, reload } = useTextTv()
-  const page = result?.kind === 'page' ? result : undefined
+  // Both a page and a not-broadcast result carry the neighbours the arrows use.
+  const neighbours = result?.kind === 'error' ? undefined : result
 
   return (
     <div className="app">
@@ -22,8 +23,8 @@ export function App() {
       </main>
       <BottomBar
         pageNumber={pageNumber}
-        prev={page?.prev ?? (result?.kind === 'not-broadcast' ? result.prev : undefined)}
-        next={page?.next ?? (result?.kind === 'not-broadcast' ? result.next : undefined)}
+        prev={neighbours?.prev}
+        next={neighbours?.next}
         onNavigate={navigate}
         onHome={() => navigate(HOME_PAGE)}
       />
