@@ -13,6 +13,15 @@ const captured = new Map<string, unknown>(
 /** Pages the current test should answer with a transport failure. */
 const failing = new Set<string>()
 
+/**
+ * Republishes a page with a new publication time, so a test can tell a
+ * refetch apart from a repaint of what was already on screen.
+ */
+export const republish = (pageNumber: string, updated: string): void => {
+  const body = captured.get(pageNumber) as { data: { meta?: { updated: string } } }
+  captured.set(pageNumber, { ...body, data: { ...body.data, meta: { updated } } })
+}
+
 export const failNextFor = (pageNumber: string): void => {
   failing.add(pageNumber)
 }
@@ -31,4 +40,7 @@ export const server = setupServer(
   }),
 )
 
-export const resetFakes = (): void => failing.clear()
+export const resetFakes = (): void => {
+  failing.clear()
+  for (const page of FIXTURE_PAGES) captured.set(page, rawFixture(page))
+}

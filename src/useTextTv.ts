@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchPage } from './api'
-import type { FetchResult, PageNumber } from './api.types'
-import { readLastVisited, readPage, writeLastVisited, writePage } from './pageStore'
+import { isPageNumber, type FetchResult, type PageNumber } from './api.types'
+import { fetchedAt, readLastVisited, readPage, writeLastVisited, writePage } from './pageStore'
 
 export const HOME_PAGE = '100'
 /** Come back within the hour and you are where you left off. */
 export const RESTORE_WINDOW_MS = 60 * 60 * 1000
 /** Returning to the foreground refetches content older than this. */
 export const REVALIDATE_AFTER_MS = 60 * 1000
-
-const isPageNumber = (value: string): boolean => /^\d{3}$/.test(value)
 
 const hashPage = (): PageNumber | undefined => {
   const raw = window.location.hash.replace(/^#/, '')
@@ -48,8 +46,8 @@ export function useTextTv(): TextTvState {
   const [stale, setStale] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<number | undefined>()
   const [reloadCount, setReloadCount] = useState(0)
-  /** Guards against a slow response for a page the reader has already left. */
-  const wanted = useRef(pageNumber)
+  /** The page a fetch is currently in flight for, if any. */
+  const inFlight = useRef<PageNumber | undefined>(undefined)
 
   useEffect(() => {
     const onHashChange = () => setPageNumber(hashPage() ?? HOME_PAGE)
@@ -64,8 +62,10 @@ export function useTextTv(): TextTvState {
   }, [pageNumber])
 
   useEffect(() => {
-    wanted.current = pageNumber
+    // Set by the cleanup below, so a slow response for a page the reader has
+    // already left is dropped instead of overwriting the current one.
     let cancelled = false
+    inFlight.current = pageNumber
 
     // Paint the last-seen copy first; a restored page is never left unfetched.
     const cached = readPage(pageNumber)
@@ -80,7 +80,8 @@ export function useTextTv(): TextTvState {
     }
 
     void fetchPage(pageNumber).then((fresh) => {
-      if (cancelled || wanted.current !== pageNumber) return
+      if (inFlight.current === pageNumber) inFlight.current = undefined
+      if (cancelled) return
       // A failed fetch must not throw away a good cached copy.
       if (fresh.kind !== 'page' && cached) {
         setStale(false)
@@ -99,6 +100,7 @@ export function useTextTv(): TextTvState {
 
     return () => {
       cancelled = true
+      if (inFlight.current === pageNumber) inFlight.current = undefined
     }
   }, [pageNumber, reloadCount])
 
@@ -108,8 +110,10 @@ export function useTextTv(): TextTvState {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return
-      const fetchedAt = readPage(pageNumber)?.fetchedAt ?? 0
-      if (Date.now() - fetchedAt >= REVALIDATE_AFTER_MS) reload()
+      // Toggling away and back during the first fetch would otherwise cancel
+      // and restart it, indefinitely under repeated toggling.
+      if (inFlight.current === pageNumber) return
+      if (Date.now() - fetchedAt(pageNumber) >= REVALIDATE_AFTER_MS) reload()
     }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)

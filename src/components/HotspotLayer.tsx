@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { FRAME_HEIGHT, FRAME_WIDTH, type PageNumber } from '../api.types'
 import { resolveHotspot, type Hotspot } from '../imageMap'
 
@@ -29,11 +29,15 @@ const key = (hotspot: Hotspot) => `${hotspot.href}-${hotspot.x1}-${hotspot.y1}`
  */
 export function HotspotLayer({ hotspots, onNavigate }: Props) {
   const layer = useRef<HTMLDivElement>(null)
+  const flashTimer = useRef<number | undefined>(undefined)
   const [flashed, setFlashed] = useState<string | undefined>()
+
+  useEffect(() => () => window.clearTimeout(flashTimer.current), [])
 
   const follow = (hotspot: Hotspot) => {
     setFlashed(key(hotspot))
-    window.setTimeout(() => setFlashed(undefined), FLASH_MS)
+    window.clearTimeout(flashTimer.current)
+    flashTimer.current = window.setTimeout(() => setFlashed(undefined), FLASH_MS)
     onNavigate(hotspot.href)
   }
 

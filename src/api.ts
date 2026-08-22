@@ -1,4 +1,5 @@
 import {
+  isPageNumber,
   type ErrorResult,
   type FetchResult,
   type NotBroadcastResult,
@@ -15,6 +16,8 @@ import {
  * decided by the `status` field and never by the HTTP status code.
  */
 const DEFAULT_BASE = 'https://www.svt.se/text-tv'
+/** A request that has not answered by now is treated as a transport error. */
+const TIMEOUT_MS = 12_000
 
 const apiBase = (): string => {
   const configured = import.meta.env?.VITE_SVT_API_BASE
@@ -23,7 +26,7 @@ const apiBase = (): string => {
 
 /** `prevPage` / `nextPage` are `""` when absent. */
 const neighbour = (value: unknown): PageNumber | undefined =>
-  typeof value === 'string' && /^\d{3}$/.test(value) ? value : undefined
+  typeof value === 'string' && isPageNumber(value) ? value : undefined
 
 const toSubPage = (raw: unknown): SubPage | undefined => {
   if (typeof raw !== 'object' || raw === null) return undefined
@@ -53,12 +56,19 @@ const failure = (pageNumber: PageNumber, message: string): ErrorResult => ({
 
 export async function fetchPage(pageNumber: PageNumber): Promise<FetchResult> {
   let body: unknown
+  // Without a deadline a hung response leaves the reader on "Hämtar…" with no
+  // retry button, since that only appears once the fetch has failed.
+  const deadline = new AbortController()
+  const timer = setTimeout(() => deadline.abort(), TIMEOUT_MS)
   try {
-    const response = await fetch(`${apiBase()}/api/${pageNumber}`)
+    const response = await fetch(`${apiBase()}/api/${pageNumber}`, { signal: deadline.signal })
     if (!response.ok) return failure(pageNumber, `HTTP ${response.status}`)
     body = await response.json()
   } catch (cause) {
+    if (deadline.signal.aborted) return failure(pageNumber, 'Tidsgränsen överskreds')
     return failure(pageNumber, cause instanceof Error ? cause.message : 'Nätverksfel')
+  } finally {
+    clearTimeout(timer)
   }
 
   if (typeof body !== 'object' || body === null) {
