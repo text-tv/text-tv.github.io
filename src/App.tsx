@@ -12,7 +12,7 @@ export function App() {
 
   return (
     <div className="app">
-      <FreshnessBar updatedAt={updatedAt} stale={stale} />
+      <FreshnessBar updatedAt={updatedAt} stale={stale} pending={result === undefined} />
       <main className="content">
         {result === undefined && <p className="message__text">Hämtar…</p>}
         {result?.kind === 'page' && <PageView page={result} onNavigate={navigate} />}
