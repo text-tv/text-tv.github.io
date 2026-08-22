@@ -79,20 +79,36 @@ export function parseImageMap(
   return hotspots
 }
 
-/** The hotspot whose centre is nearest the point, or `undefined` if none. */
-export function nearestHotspot(
+/**
+ * Picks the hotspot a touch at (x, y) meant, in frame pixels.
+ *
+ * A printed page reference is only 16 px tall, so targets are expanded
+ * vertically to a finger's width and then overlap on a dense page. Overlaps
+ * resolve to the nearest rect centre rather than to paint order, which is why
+ * this is arithmetic here and not z-order in the DOM.
+ *
+ * `halfHeight` is half the minimum target height, in frame pixels.
+ */
+export function resolveHotspot(
   hotspots: Hotspot[],
   x: number,
   y: number,
+  halfHeight: number,
 ): Hotspot | undefined {
   let best: Hotspot | undefined
   let bestDistance = Infinity
+
   for (const hotspot of hotspots) {
+    if (x < hotspot.x1 || x > hotspot.x2) continue
+    const reach = Math.max((hotspot.y2 - hotspot.y1) / 2, halfHeight)
+    if (Math.abs(y - hotspot.centreY) > reach) continue
+
     const distance = (hotspot.centreX - x) ** 2 + (hotspot.centreY - y) ** 2
     if (distance < bestDistance) {
       bestDistance = distance
       best = hotspot
     }
   }
+
   return best
 }
