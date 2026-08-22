@@ -1,4 +1,4 @@
-import { parseImageMap } from './imageMap'
+import { parseImageMap, resolveHotspot } from './imageMap'
 import { rawFixture } from './test/fixtures'
 
 const livePage100Map: string = (
@@ -67,5 +67,37 @@ describe('parseImageMap', () => {
   it('normaliserar omvända koordinatpar', () => {
     const [hotspot] = parseImageMap('<AREA SHAPE="RECT" COORDS="78,16,39,0" HREF="106">')
     expect(hotspot).toMatchObject({ x1: 39, y1: 0, x2: 78, y2: 16 })
+  })
+})
+
+describe('resolveHotspot', () => {
+  const area = (href: string, x: number, y: number) =>
+    `<AREA SHAPE="RECT" COORDS="${x},${y},${x + 39},${y + 16}" HREF="${href}">`
+  // Two references printed on adjacent rows: 16 px apart, so their 44 px
+  // targets overlap heavily.
+  const stacked = parseImageMap([area('101', 100, 100), area('102', 100, 116)].join('\t'))
+
+  it('väljer träffen närmast beröringspunkten när målen överlappar', () => {
+    expect(resolveHotspot(stacked, 120, 104, 22)?.href).toBe('101')
+    expect(resolveHotspot(stacked, 120, 128, 22)?.href).toBe('102')
+  })
+
+  it('bryr sig inte om ordningen i listan', () => {
+    expect(resolveHotspot([...stacked].reverse(), 120, 104, 22)?.href).toBe('101')
+  })
+
+  it('träffar en post även utanför den ritade rutan, upp till fingerbredd', () => {
+    // 20 px above the top rect's centre: outside its 16 px box, inside its target.
+    expect(resolveHotspot(stacked, 120, 88, 22)?.href).toBe('101')
+  })
+
+  it('ger inget för en beröring utanför alla mål', () => {
+    expect(resolveHotspot(stacked, 400, 300, 22)).toBeUndefined()
+    expect(resolveHotspot(stacked, 120, 300, 22)).toBeUndefined()
+  })
+
+  it('breddar aldrig målet i sidled', () => {
+    expect(resolveHotspot(stacked, 99, 108, 22)).toBeUndefined()
+    expect(resolveHotspot(stacked, 100, 108, 22)).toBeDefined()
   })
 })
