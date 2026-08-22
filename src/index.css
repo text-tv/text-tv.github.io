@@ -84,44 +84,34 @@ body {
 }
 
 /*
- * A printed reference is 39x16 px, about 29x12 CSS px at phone width, so the
- * target is expanded vertically to a finger's width and centred on the rect.
- * The expansion is invisible; only the underline marks the link.
+ * The visible mark: a 1px underline in the frame's own foreground colour on
+ * the printed rect. Not a box - and not colour alone, since teletext colours
+ * plenty of text that goes nowhere.
  */
-.hotspot {
+.hotspot-mark {
   position: absolute;
-  min-height: 44px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  transform: translateY(calc((100% - 44px) / 2));
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.hotspot:where(:not(:disabled)) {
-  appearance: none;
-}
-
-/*
- * A 1px underline in the frame's own foreground colour, pinned to the printed
- * rect rather than the expanded target. Colour alone would not communicate
- * tappability - teletext colours plenty of text that goes nowhere.
- */
-.hotspot__mark {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 44px;
-  margin-top: -22px;
   border-bottom: 1px solid var(--link);
   pointer-events: none;
 }
 
-.hotspot--flash .hotspot__mark {
+.hotspot-mark--flash {
   background: rgba(255, 255, 255, 0.35);
+}
+
+/*
+ * The touch target: invisible, centred on the printed rect, and at least a
+ * finger tall. Overlaps between expanded targets are resolved by the layer's
+ * capture handler, not by paint order.
+ */
+.hotspot {
+  position: absolute;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Messages */

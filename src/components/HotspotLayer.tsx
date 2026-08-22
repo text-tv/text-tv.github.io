@@ -12,59 +12,76 @@ interface Props {
   onNavigate: (pageNumber: PageNumber) => void
 }
 
+const key = (hotspot: Hotspot) => `${hotspot.href}-${hotspot.x1}-${hotspot.y1}`
+
 /**
  * Transparent tap targets over a teletext frame.
  *
- * Each printed page reference is 39x16 px, which is well under a finger at the
- * size the frame renders, so targets are expanded vertically. Expanded targets
- * overlap on a dense page, and the capture handler below resolves a touch to
- * the nearest rect centre rather than to whichever element the browser happens
- * to hit first. Where there is no layout to measure - a keyboard activation,
- * or a test environment - the buttons' own handlers still work.
+ * A printed page reference is 39x16 px, well under a finger at the size the
+ * frame renders, so the targets are expanded vertically and centred on the
+ * printed rect. The underline is drawn as its own element on the printed rect,
+ * so expanding the target never moves the mark off the digits.
+ *
+ * Expanded targets overlap on a dense page. The capture handler resolves a
+ * touch to the nearest rect centre rather than to whichever element the
+ * browser hits first. Where there is no layout to measure - a keyboard
+ * activation, or a test environment - each button's own handler still works.
  */
 export function HotspotLayer({ hotspots, onNavigate }: Props) {
   const layer = useRef<HTMLDivElement>(null)
-  const [flashed, setFlashed] = useState<number | undefined>()
+  const [flashed, setFlashed] = useState<string | undefined>()
 
-  const follow = (index: number, href: PageNumber) => {
-    setFlashed(index)
+  const follow = (hotspot: Hotspot) => {
+    setFlashed(key(hotspot))
     window.setTimeout(() => setFlashed(undefined), FLASH_MS)
-    onNavigate(href)
+    onNavigate(hotspot.href)
   }
 
   const onClickCapture = (event: MouseEvent<HTMLDivElement>) => {
     const box = layer.current?.getBoundingClientRect()
     if (!box?.width || !box.height) return
 
-    const scale = box.width / FRAME_WIDTH
-    const x = (event.clientX - box.left) / scale
-    const y = (event.clientY - box.top) / (box.height / FRAME_HEIGHT)
-    const hit = resolveHotspot(hotspots, x, y, MIN_TARGET_PX / 2 / scale)
+    const x = ((event.clientX - box.left) / box.width) * FRAME_WIDTH
+    const y = ((event.clientY - box.top) / box.height) * FRAME_HEIGHT
+    const halfHeight = (MIN_TARGET_PX / 2 / box.height) * FRAME_HEIGHT
+    const hit = resolveHotspot(hotspots, x, y, halfHeight)
     if (!hit) return
 
     event.preventDefault()
     event.stopPropagation()
-    follow(hotspots.indexOf(hit), hit.href)
+    follow(hit)
   }
 
   return (
     <div className="hotspots" ref={layer} onClickCapture={onClickCapture}>
-      {hotspots.map((hotspot, index) => (
-        <button
-          key={`${hotspot.href}-${hotspot.x1}-${hotspot.y1}`}
-          type="button"
-          className={`hotspot${flashed === index ? ' hotspot--flash' : ''}`}
-          aria-label={`Sida ${hotspot.href}`}
+      {hotspots.map((hotspot) => (
+        <span
+          key={`mark-${key(hotspot)}`}
+          aria-hidden="true"
+          className={`hotspot-mark${flashed === key(hotspot) ? ' hotspot-mark--flash' : ''}`}
           style={{
             left: `${hotspot.leftPct}%`,
             top: `${hotspot.topPct}%`,
             width: `${hotspot.widthPct}%`,
             height: `${hotspot.heightPct}%`,
           }}
-          onClick={() => follow(index, hotspot.href)}
-        >
-          <span className="hotspot__mark" aria-hidden="true" />
-        </button>
+        />
+      ))}
+      {hotspots.map((hotspot) => (
+        <button
+          key={`target-${key(hotspot)}`}
+          type="button"
+          className="hotspot"
+          aria-label={`Sida ${hotspot.href}`}
+          style={{
+            left: `${hotspot.leftPct}%`,
+            width: `${hotspot.widthPct}%`,
+            // Centred on the printed rect, then grown to a finger's width.
+            top: `${hotspot.topPct + hotspot.heightPct / 2}%`,
+            height: `max(${hotspot.heightPct}%, ${MIN_TARGET_PX}px)`,
+          }}
+          onClick={() => follow(hotspot)}
+        />
       ))}
     </div>
   )
