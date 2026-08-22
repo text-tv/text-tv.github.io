@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchPage } from './api'
 import { isPageNumber, type FetchResult, type PageNumber } from './api.types'
-import { fetchedAt, readLastVisited, readPage, writeLastVisited, writePage } from './pageStore'
+import {
+  fetchedAt,
+  readLastVisited,
+  readPage,
+  removePage,
+  writeLastVisited,
+  writePage,
+} from './pageStore'
 
 export const HOME_PAGE = '100'
 /** Come back within the hour and you are where you left off. */
@@ -82,8 +89,11 @@ export function useTextTv(): TextTvState {
     void fetchPage(pageNumber).then((fresh) => {
       if (inFlight.current === pageNumber) inFlight.current = undefined
       if (cancelled) return
-      // A failed fetch must not throw away a good cached copy.
-      if (fresh.kind !== 'page' && cached) {
+      // A transport failure must not throw away a good cached copy - that is
+      // what makes the app work underground. A confirmed not-broadcast is
+      // different: it is SVT's answer about the page, so it replaces the
+      // cached copy and the copy is forgotten rather than shown again later.
+      if (fresh.kind === 'error' && cached) {
         setStale(false)
         return
       }
@@ -95,6 +105,7 @@ export function useTextTv(): TextTvState {
         writePage(pageNumber, fresh, now)
       } else {
         setUpdatedAt(undefined)
+        if (fresh.kind === 'not-broadcast') removePage(pageNumber)
       }
     })
 

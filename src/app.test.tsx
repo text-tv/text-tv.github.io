@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
-import { failNextFor, republish, stopFailing } from './test/server'
+import { failNextFor, republish, stopFailing, takeOffAir } from './test/server'
 
 /** The same clock format the freshness bar renders. */
 const shownAs = (iso: string) =>
@@ -206,6 +206,34 @@ describe('sidor som inte går att visa', () => {
     const actions = screen.getByText('Sidan ej i sändning').parentElement!
     expect(within(actions).getByRole('button', { name: 'Sida 139' })).toBeInTheDocument()
     expect(within(actions).getByRole('button', { name: 'Sida 250' })).toBeInTheDocument()
+  })
+
+  it('säger ifrån när en cachad sida har slutat sändas', async () => {
+    const { unmount } = openOn('377')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+    unmount()
+
+    // SVT has taken the page off air since it was cached.
+    takeOffAir('377', { prev: '376', next: '378' })
+    openOn('377')
+
+    expect(await screen.findByText('Sidan ej i sändning')).toBeInTheDocument()
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Sida 376' })).toBeInTheDocument()
+  })
+
+  it('glömmer den cachade sidan när den har slutat sändas', async () => {
+    const { unmount } = openOn('377')
+    await waitFor(() => expect(frames()).toHaveLength(1))
+    unmount()
+
+    takeOffAir('377', { prev: '376', next: '378' })
+    const second = openOn('377')
+    await screen.findByText('Sidan ej i sändning')
+    second.unmount()
+
+    // Nothing left to repaint next time.
+    expect(window.localStorage.getItem('texttv:page:377')).toBeNull()
   })
 
   // AE7
