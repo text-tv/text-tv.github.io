@@ -315,13 +315,13 @@ body {
 }
 
 .links__num {
-  font-size: 15px;
+  font-size: 13px;
   color: #ffff00;
   font-variant-numeric: tabular-nums;
 }
 
 .links__name {
-  font-size: 15px;
+  font-size: 13px;
   color: #00ffff;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -351,7 +351,7 @@ body {
 
   .links__num,
   .links__name {
-    font-size: 17px;
+    font-size: 15px;
   }
 }
 
