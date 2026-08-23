@@ -32,6 +32,27 @@ export const republish = (pageNumber: string, updated: string): void => {
   captured.set(pageNumber, { ...body, data: { ...body.data, meta: { updated } } })
 }
 
+/**
+ * Republishes a page carrying another page's frame, under its own sub-page
+ * numbers - the way SVT rolls a live page over while the app is showing it.
+ */
+export const reframe = (pageNumber: string, source: string): void => {
+  type Body = { data: { subPages: { gifAsBase64: string; altText: string }[] } }
+  const body = captured.get(pageNumber) as Body
+  const [frame] = (rawFixture(source) as Body).data.subPages
+  captured.set(pageNumber, {
+    ...body,
+    data: {
+      ...body.data,
+      subPages: body.data.subPages.map((subPage, index) =>
+        index === 0
+          ? { ...subPage, gifAsBase64: frame.gifAsBase64, altText: frame.altText }
+          : subPage,
+      ),
+    },
+  })
+}
+
 export const failNextFor = (pageNumber: string): void => {
   failing.add(pageNumber)
 }

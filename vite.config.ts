@@ -38,7 +38,10 @@ export default defineConfig({
       workbox: {
         // The shell only. Page content freshness is owned by the app's own
         // store; a second cache would give a second answer about staleness.
-        globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+        // The face has to be precached with the rest of the shell: without it
+        // an offline page falls back to a monospace of a different advance and
+        // every row drifts out of its columns.
+        globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}'],
         navigateFallback: 'index.html',
       },
     }),

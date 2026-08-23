@@ -28,6 +28,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # The glyph table is generated and committed; fail rather than deploy a
+      # copy its inputs have moved past.
+      - run: npm run glyphs:check
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

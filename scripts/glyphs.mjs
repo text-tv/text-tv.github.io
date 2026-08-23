@@ -1,18 +1,29 @@
 // Builds src/teletext/glyphs.generated.ts from the captured fixtures.
 //
 // The runtime resolves a cell by looking its mask up in this table (KTD3), so
-// the mask is serialised here exactly the way src/teletext/decode.ts builds it.
-// Characters are recovered by aligning each sub-page's altText lines to the
-// grid; block-graphics cells are recognised by shape and need no label.
+// the mask is serialised here exactly the way src/teletext/decode.ts builds it -
+// through src/teletext/mask.js, which both sides import. Characters are
+// recovered by aligning each sub-page's altText lines to the grid;
+// block-graphics cells are recognised by shape and need no label.
+//
+// Re-run `npm run glyphs` after touching fixtures/, fixtures/glyphs/, this
+// script, or src/teletext/mask.js. `npm run glyphs:check` fails the build when
+// the committed table no longer matches what those inputs produce.
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { decodeGif } from './gif.mjs'
+import { doubleHeightKey, isStretched, maskKey } from '../src/teletext/mask.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const fixturesDir = join(root, 'fixtures')
 const overridesFile = join(root, 'scripts', 'glyph-overrides.json')
-const outFile = join(root, 'src', 'teletext', 'glyphs.generated.ts')
+const committedFile = join(root, 'src', 'teletext', 'glyphs.generated.ts')
+// --check regenerates to a scratch file and compares, so CI catches a table
+// left behind by an input that moved on.
+const check = process.argv.includes('--check')
+const outFile = check ? join(tmpdir(), 'glyphs.generated.check.ts') : committedFile
 
 const COLS = 40
 const ROWS = 25
@@ -31,9 +42,14 @@ const MOSAIC_REGIONS = [
   [6, 13, 11, 16],
 ]
 
-const maskKey = (mask) => mask.join(',')
-
-/** Splits a decoded frame into 1000 masks; `null` where the cell is one colour. */
+/**
+ * Splits a decoded frame into 1000 masks; `null` where the cell is one colour.
+ *
+ * A cell of more than two colours is not the grid this model assumes, so the
+ * whole frame is abandoned - `null` - exactly as src/teletext/decode.ts does.
+ * Folding a third colour into the mask here would mint keys the runtime can
+ * never produce, or collide with a real one and vote for the wrong character.
+ */
 function toMasks({ pal, idx }) {
   const colour = (x, y) => {
     const [r, g, b] = pal[idx[y * FRAME_W + x]]
@@ -55,6 +71,7 @@ function toMasks({ pal, idx }) {
         masks.push(null)
         continue
       }
+      if (counts.size > 2) return null
       let bg = 0
       let best = -1
       for (const [c, n] of counts) if (n > best) [bg, best] = [c, n]
@@ -87,12 +104,6 @@ function mosaicBits(mask) {
     if (first) bits |= 1 << i
   }
   return bits
-}
-
-/** A double-height glyph is drawn at 2x, so every scanline is duplicated. */
-function isStretched(mask) {
-  for (let y = 0; y < CELL_H; y += 2) if (mask[y] !== mask[y + 1]) return false
-  return true
 }
 
 const occupancy = (masks, row) =>
@@ -137,29 +148,45 @@ function displayRows(masks) {
 
 const sameOccupancy = (a, b) => a.every((cell, i) => cell === b[i])
 
+/**
+ * Every captured response, from both corpora.
+ *
+ * fixtures/raw_*.json is the app's own fixture set, which the mock and the
+ * tests also read; fixtures/glyphs/ is a wider harvest that exists only to
+ * train this table. Held-out coverage is the reason for the second one: on the
+ * six fixtures alone a page the table has never seen leaves about 5% of its
+ * cells with no glyph, and every one of those falls back to a GIF slice.
+ */
+const corpora = [
+  { dir: fixturesDir, matches: (n) => /^raw_\d{3}\.json$/.test(n) },
+  { dir: join(fixturesDir, 'glyphs'), matches: (n) => /\.json$/.test(n) },
+]
+
+let skippedFrames = 0
+
 function readFixtures() {
   const pages = []
-  for (const name of readdirSync(fixturesDir).filter((n) => /^raw_\d{3}\.json$/.test(n)).sort()) {
-    const body = JSON.parse(readFileSync(join(fixturesDir, name), 'utf8'))
-    for (const sub of body.data?.subPages ?? []) {
-      if (!sub.gifAsBase64) continue
-      const frame = decodeGif(Buffer.from(sub.gifAsBase64, 'base64'))
-      if (frame.w !== FRAME_W || frame.h !== FRAME_H) throw new Error(`${name}: not ${FRAME_W}x${FRAME_H}`)
-      pages.push({ name, sub: sub.subPageNumber, masks: toMasks(frame), altText: sub.altText ?? '' })
+  for (const { dir, matches } of corpora) {
+    if (!existsSync(dir)) continue
+    for (const name of readdirSync(dir).filter(matches).sort()) {
+      const body = JSON.parse(readFileSync(join(dir, name), 'utf8'))
+      for (const sub of body.data?.subPages ?? []) {
+        if (!sub.gifAsBase64) continue
+        const frame = decodeGif(Buffer.from(sub.gifAsBase64, 'base64'))
+        if (frame.w !== FRAME_W || frame.h !== FRAME_H) throw new Error(`${name}: not ${FRAME_W}x${FRAME_H}`)
+        const masks = toMasks(frame)
+        if (masks === null) {
+          skippedFrames += 1
+          continue
+        }
+        pages.push({ name, sub: sub.subPageNumber, masks, altText: sub.altText ?? '' })
+      }
     }
   }
   return pages
 }
 
 const glyphs = new Map() // key -> { key, masks, votes: Map<char, count>, doubleHeight }
-
-/**
- * Both halves key a double-height glyph: 's' and 'c' share a top half and
- * differ below, while 'a' and 'å' share a bottom half and differ above, so
- * neither half identifies the character on its own.
- */
-const composite = (top, bottom) =>
-  `${top === null ? '' : maskKey(top)}|${bottom === null ? '' : maskKey(bottom)}`
 
 function glyph(key, masks) {
   let entry = glyphs.get(key)
@@ -176,15 +203,24 @@ function cellGlyph(masks, row, col) {
   if (!row.doubleHeight) return top === null ? null : glyph(maskKey(top), [top])
   const bottom = masks[(row.row + 1) * COLS + col]
   if (top === null && bottom === null) return null
-  return glyph(composite(top, bottom), [top, bottom])
+  return glyph(doubleHeightKey(top, bottom), [top, bottom])
 }
 
 const pages = readFixtures()
+let rejectedLines = 0
+let rejectedVotes = 0
 
 for (const page of pages) {
   const { masks } = page
   const rows = displayRows(masks)
   for (const row of rows) for (let col = 0; col < COLS; col += 1) cellGlyph(masks, row, col)
+
+  // altText runs down the page, so the rows it labels must too. Uniqueness
+  // alone rejects ambiguity but not misalignment: a line that cannot match its
+  // own row - any row holding a mosaic is spaced out in altText - may still be
+  // the only match for some other row, and would vote every one of its
+  // characters onto the wrong glyphs.
+  let lastMatched = -1
 
   for (const line of page.altText.split('\n')) {
     if (line.trim() === '') continue
@@ -195,6 +231,13 @@ for (const page of pages) {
     const matches = rows.filter((row) => sameOccupancy(row.occupancy, occ))
     if (matches.length !== 1) continue
     const row = matches[0]
+    const index = rows.indexOf(row)
+    if (index <= lastMatched) {
+      rejectedLines += 1
+      for (let col = 0; col < COLS; col += 1) if (text[col] !== ' ') rejectedVotes += 1
+      continue
+    }
+    lastMatched = index
 
     for (let col = 0; col < COLS; col += 1) {
       const char = text[col]
@@ -240,17 +283,14 @@ for (const entry of [...glyphs.values()].sort((a, b) => a.key.localeCompare(b.ke
     unlabelled.push(entry)
     continue
   }
-  entries.push([
-    entry.key,
-    `{ kind: 'char', char: ${JSON.stringify(char)}, doubleHeight: ${entry.doubleHeight} }`,
-  ])
+  entries.push([entry.key, `{ kind: 'char', char: ${JSON.stringify(char)} }`])
 }
 
 const body = entries.map(([key, value]) => `  '${key}': ${value},`).join('\n')
 writeFileSync(
   outFile,
-  `// Generated by \`npm run glyphs\` from fixtures/raw_*.json. Do not hand-edit;\n` +
-    `// hand labels belong in scripts/glyph-overrides.json.\n` +
+  `// Generated by \`npm run glyphs\` from fixtures/raw_*.json and fixtures/glyphs/.\n` +
+    `// Do not hand-edit; hand labels belong in scripts/glyph-overrides.json.\n` +
     `import type { Glyph } from './types'\n\n` +
     `export const GLYPHS: Record<string, Glyph> = {\n${body}\n}\n`,
 )
@@ -270,8 +310,19 @@ log(`${glyphs.size} distinct glyphs across ${pages.length} sub-pages`)
 log(`  ${mosaics} mosaics, ${voted} auto-labelled, ${overridden} overridden`)
 log(`  ${[...glyphs.values()].filter((e) => e.doubleHeight).length} of them double-height`)
 log(`  ${unlabelled.length} unlabelled`)
+log(`  ${rejectedLines} altText lines rejected as out of order (${rejectedVotes} votes)`)
+log(`  ${skippedFrames} frames skipped for a cell of more than two colours`)
 for (const entry of unlabelled) {
   log(`\n'${entry.key}':`)
   log(art(entry.masks))
 }
-log(`\nwrote ${outFile.slice(root.length + 1)}: ${entries.length} entries`)
+if (check) {
+  const fresh = readFileSync(outFile, 'utf8')
+  if (!existsSync(committedFile) || readFileSync(committedFile, 'utf8') !== fresh) {
+    log(`\n${committedFile.slice(root.length + 1)} is stale - run \`npm run glyphs\` and commit it`)
+    process.exit(1)
+  }
+  log(`\n${committedFile.slice(root.length + 1)} is up to date: ${entries.length} entries`)
+} else {
+  log(`\nwrote ${outFile.slice(root.length + 1)}: ${entries.length} entries`)
+}
