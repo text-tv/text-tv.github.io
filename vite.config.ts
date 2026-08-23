@@ -11,6 +11,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Registration is hand-written in src/serviceWorker.ts: the generated
+      // script only registers, which leaves an installed copy on its cached
+      // shell forever.
+      injectRegister: null,
       includeAssets: ['apple-touch-icon.png', 'favicon.png'],
       manifest: {
         name: 'Text-TV',
