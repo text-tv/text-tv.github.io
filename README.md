@@ -8,6 +8,37 @@ mobile web page loses: **the page references printed inside the frame are real,
 finger-sized tap targets**. Page 100 is the home screen. There are no accounts,
 no settings and no favourites.
 
+## Install as an app
+
+The app lives at **<https://text-tv.github.io/>** and works in any browser
+right away. Installing it just puts it on your home screen, where it opens
+full-screen with no browser bars and keeps the last pages you read available
+offline. Nothing is downloaded from an app store, and nothing asks for an
+account.
+
+**iPhone / iPad (Safari)** — Safari is required; Chrome on iOS cannot install
+apps.
+
+1. Open <https://text-tv.github.io/> in Safari.
+2. Tap the **Share** button (the square with an arrow pointing up), at the
+   bottom of the screen on iPhone, top right on iPad.
+3. Scroll down the list and tap **Lägg till på hemskärmen** / **Add to Home
+   Screen**.
+4. Tap **Lägg till** / **Add**. The icon appears on your home screen.
+
+**Android (Chrome)**
+
+1. Open <https://text-tv.github.io/> in Chrome.
+2. A banner offering to install may appear — tap it and you are done.
+3. Otherwise tap the **⋮** menu, top right, and choose **Installera app** /
+   **Install app** (older versions say **Lägg till på startskärmen**).
+4. Confirm with **Installera** / **Install**.
+
+**Desktop (Chrome or Edge)** — click the install icon at the right-hand end of
+the address bar, or use the **⋮** / **…** menu and choose **Install**.
+
+To remove it, delete the icon the same way you would any other app.
+
 ## Requirements
 
 Node 20 or later.
@@ -87,14 +118,6 @@ nearest centre.
 
 The API client and the individual components have no unit tests by design;
 they are covered through the app-level seam.
-
-### Not covered by tests — check on the real devices
-
-- Whether 0.75x text is readable for the intended reader.
-- Whether 44 px hotspots are hittable in practice, and whether nearest-centre
-  resolution picks what was meant on a dense page.
-- Service worker behaviour on a real iOS home-screen install.
-- Install, icon and splash appearance in standalone mode.
 
 ## Deployment
 
