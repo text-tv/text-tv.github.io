@@ -1,11 +1,15 @@
 /*
- * Bedstead, which redraws the SAA5050 teletext character generator SVT's own
- * frames descend from. Public domain (CC0); the upstream release is kept in
- * misc/bedstead-3.261. The url is relative so it survives a project-path base.
+ * Inconsolata, a humanist monospace, in its variable-width cut. Teletext cells
+ * are 13x16, so a face has to be far wider than a normal mono to fill one: the
+ * wdth axis at 150% puts the advance at exactly 0.75em, the ratio the grid
+ * below is built on. SIL Open Font License; the licence is in misc/. The url is
+ * relative so it survives a project-path base.
  */
 @font-face {
-  font-family: 'Bedstead';
-  src: url('../bedstead.woff2') format('woff2');
+  font-family: 'Inconsolata';
+  src: url('../inconsolata.woff2') format('woff2-variations');
+  font-weight: 400;
+  font-stretch: 50% 200%;
   font-display: swap;
 }
 
@@ -149,15 +153,17 @@ body {
   container-type: inline-size;
   overflow: hidden;
   background: #000;
-  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-stretch: 150%;
   --cell-w: 2.5cqw;
   --cell-h: calc(var(--cell-w) * 16 / 13);
   /*
    * One glyph has to occupy exactly one 13px column, and a face's advance is a
-   * property of its design: Bedstead Extended sets 0.75em, so a cell's worth of
-   * type is the cell divided by that. Swapping in another face means changing
-   * this one number to its advance ratio - the run's letter-spacing then takes
-   * up whatever slack is left, so the grid stays exact either way.
+   * property of its design: Inconsolata at 150% width sets 0.75em, so a
+   * cell's worth of type is the cell divided by that. Swapping in another
+   * face means changing this one number to its advance ratio - the run's
+   * letter-spacing then takes up whatever slack is left, so the grid stays
+   * exact either way.
    */
   --advance: 0.75;
 }
@@ -303,7 +309,8 @@ body {
   row-gap: 2px;
   margin-top: 2px;
   /* The frames' own face, so the shortcuts read as a continuation of the page. */
-  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-stretch: 150%;
 }
 
 /* font: inherit or the UA's own button font wins and the monospace is lost. */
@@ -403,7 +410,8 @@ body {
  * would be a mosaic, and these are chrome rather than page content.
  */
 .bar {
-  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-stretch: 150%;
   display: flex;
   justify-content: center;
   height: calc(var(--bar-height) + env(safe-area-inset-bottom));
