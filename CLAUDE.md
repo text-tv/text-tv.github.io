@@ -51,7 +51,7 @@ Production has no `VITE_SVT_API_BASE` override, so it uses the real endpoint.
   code — the API answers 200 for pages that are not broadcast.
 - Test at the app level with the network faked at the HTTP boundary (`msw` +
   the captured fixtures). Do not unit-test the API client or individual
-  components; `src/imageMap.ts` is the one exception, as a pure function.
+  components; pure modules with no DOM of their own may be unit-tested.
 - All user-visible strings are Swedish, inline. No i18n framework.
 - Use hash-based routing (`#100`) so page numbers are shareable and the browser
   back button works.

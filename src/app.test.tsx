@@ -1,7 +1,17 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
-import { failNextFor, republish, stopFailing, takeOffAir } from './test/server'
+import { resetDecodeCache } from './teletext/decode'
+import {
+  addThreeColourCell,
+  addUnknownCell,
+  breakFrameDecoding,
+  heldFrames,
+  holdFrameDecoding,
+  releaseFrameDecoding,
+  releaseNewestFrame,
+} from './test/canvas'
+import { failNextFor, reframe, republish, stopFailing, takeOffAir } from './test/server'
 
 /** The same clock format the freshness bar renders. */
 const shownAs = (iso: string) =>
@@ -15,25 +25,120 @@ const openOn = (pageNumber?: string) => {
 const currentPage = async (pageNumber: string) =>
   waitFor(() => expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent(pageNumber))
 
-/** Frames carry the page's altText, which starts with its number. */
-const frames = () => screen.getAllByRole('img')
+/** Every frame box on screen, in whichever of its three states it is. */
+const frames = () => screen.getAllByRole('group')
+
+/** The frames that have decoded and drawn themselves as text. */
+const textFrames = () => [...document.querySelectorAll('.text-frame')]
+
+/**
+ * Waits for `count` frames to be on screen *and* decoded, so what follows runs
+ * against the text rendering rather than the undecided pending box.
+ */
+const drawnFrames = async (count: number, timeout?: number) => {
+  await waitFor(
+    () => {
+      expect(frames()).toHaveLength(count)
+      expect(textFrames()).toHaveLength(count)
+    },
+    { timeout },
+  )
+  return frames()
+}
 
 describe('läsa en sida', () => {
-  it('visar sida 100 med dess bild', async () => {
+  it('visar sida 100 som riktig text, inte som bild', async () => {
     openOn('100')
     await currentPage('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
-    expect(frames()[0]).toHaveAttribute('src', expect.stringContaining('data:image/gif;base64,'))
+    await drawnFrames(1)
+
+    // The headline is nowhere in the markup until the GIF has been decoded and
+    // its cells resolved, so this can only pass on the text path.
+    expect(frames()[0]).toHaveTextContent('Angrep elever med svärd - flicka dödad')
+    expect(screen.queryAllByRole('img')).toHaveLength(0)
+  })
+
+  // R7
+  it('ritar den dubbelhöga rubriken som en enda rad', async () => {
+    openOn('100')
+    await drawnFrames(1)
+
+    const doubles = [...document.querySelectorAll('.text-frame__row--double')]
+    expect(doubles.map((row) => row.textContent?.trim())).toContain(
+      'Nya dödliga ryska attacker mot Ukraina',
+    )
+  })
+
+  // R10
+  it('faller tillbaka på bilden när rutan inte går att avkoda', async () => {
+    breakFrameDecoding()
+    openOn('105')
+    await currentPage('105')
+
+    const gif = await screen.findByRole('img')
+    expect(gif).toHaveAttribute('src', expect.stringContaining('data:image/gif;base64,'))
+    expect(textFrames()).toHaveLength(0)
+  })
+
+  // R10
+  it('faller tillbaka på bilden när en cell har tre färger', async () => {
+    addThreeColourCell()
+    openOn('105')
+    await currentPage('105')
+
+    // One cell is enough: the model only holds if every cell has two colours,
+    // so the whole frame is left to the image.
+    expect(await screen.findByRole('img')).toHaveAttribute('alt', expect.stringContaining('SVT'))
+    expect(textFrames()).toHaveLength(0)
+  })
+
+  // R6
+  it('klipper ut rutan ur bilden för en cell den inte känner igen', async () => {
+    addUnknownCell()
+    openOn('105')
+    await drawnFrames(1)
+
+    // The rest of the page is still text; only the one cell falls back.
+    const slices = [...document.querySelectorAll('.text-frame__slice')]
+    expect(slices).toHaveLength(1)
+    expect((slices[0] as HTMLElement).style.backgroundImage).toContain('data:image/gif;base64,')
+  })
+
+  it('ritar inte en överspelad delsida under den nya rutan', async () => {
+    const { unmount } = openOn('100')
+    await drawnFrames(1)
+    unmount()
+
+    // SVT has rolled the page over: same sub-page, a new frame.
+    reframe('100', '377')
+    // A new session, so the cached frame is decoded again rather than served
+    // from the decode cache.
+    resetDecodeCache()
+    holdFrameDecoding()
+    openOn('100')
+
+    // The cached frame decodes, and the refetched one right after it.
+    await waitFor(() => expect(heldFrames()).toBe(2))
+
+    // The new frame answers first; the cached one it replaced answers late.
+    releaseNewestFrame()
+    await drawnFrames(1)
+    expect(frames()[0]).toHaveTextContent('377 SVT Text')
+
+    releaseFrameDecoding()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(frames()[0]).toHaveTextContent('377 SVT Text')
+    expect(frames()[0]).not.toHaveTextContent('Angrep elever')
   })
 
   // AE5
   it('staplar alla 14 delsidor på sida 331 utan att växla mellan dem', async () => {
     openOn('331')
-    await waitFor(() => expect(frames()).toHaveLength(14), { timeout: 5000 })
-    const first = frames()[0].getAttribute('src')
+    await drawnFrames(14, 10000)
+    const first = textFrames()[0].textContent
     await new Promise((resolve) => setTimeout(resolve, 250))
     expect(frames()).toHaveLength(14)
-    expect(frames()[0]).toHaveAttribute('src', first)
+    expect(textFrames()[0].textContent).toBe(first)
   })
 
   it('nämner att innehållet kommer från SVT Text', async () => {
@@ -46,7 +151,7 @@ describe('länkar i bilden', () => {
   // AE1
   it('går till sida 106 när man trycker på den i bilden', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
 
     await userEvent.click(screen.getByLabelText('Sida 106'))
 
@@ -56,7 +161,7 @@ describe('länkar i bilden', () => {
 
   it('markerar länken direkt när den trycks', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
 
     await userEvent.click(screen.getByLabelText('Sida 106'))
 
@@ -66,7 +171,7 @@ describe('länkar i bilden', () => {
   // AE2
   it('tar bakåtgesten tillbaka till sidan man kom från', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     await userEvent.click(screen.getByLabelText('Sida 106'))
     await currentPage('106')
 
@@ -98,7 +203,7 @@ describe('överlappande länkar', () => {
 
   it('väljer länken närmast fingret, inte den som råkar ligga överst', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     const layer = giveTheFrameALayout()
 
     // Page 100 prints 106 at y 144-160 and 107 at y 208-224. Expanded to 44px
@@ -110,7 +215,7 @@ describe('överlappande länkar', () => {
 
   it('väljer den andra länken när fingret ligger närmare den', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     const layer = giveTheFrameALayout()
 
     tapAt(layer, 266, 216)
@@ -120,7 +225,7 @@ describe('överlappande länkar', () => {
 
   it('gör ingenting när fingret ligger utanför alla länkar', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     const layer = giveTheFrameALayout()
 
     tapAt(layer, 10, 380)
@@ -131,7 +236,7 @@ describe('överlappande länkar', () => {
 
   it('följer bilden när den skalas ned', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     // A phone renders the frame at roughly 0.75x; the same printed reference
     // must still be reachable at the scaled-down coordinates.
     const layer = giveTheFrameALayout(0.75)
@@ -173,9 +278,9 @@ describe('genvägarna under bilden', () => {
 
     await currentPage('377')
     expect(window.location.hash).toBe('#377')
-    // The 377 fixture was fetched, not just the hash rewritten: altText opens
-    // with the page number, so 100's frame would not satisfy this.
-    await waitFor(() => expect(frames()[0]).toHaveAttribute('alt', expect.stringContaining('377')))
+    // The 377 fixture was fetched, not just the hash rewritten: the decoded
+    // frame prints its own page number, so 100's frame would not satisfy this.
+    await waitFor(() => expect(frames()[0]).toHaveTextContent('377 SVT Text'))
   })
 
   it('tar bakåtgesten tillbaka från en genväg', async () => {
@@ -226,7 +331,7 @@ describe('knapparna längst ned', () => {
 
   it('släcker pilen när sidan saknar granne åt det hållet', async () => {
     openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     // Page 100 is the first page: no previous, but 101 follows.
     expect(screen.getByLabelText('Föregående sida')).toBeDisabled()
     expect(screen.getByLabelText('Nästa sida')).toBeEnabled()
@@ -281,7 +386,7 @@ describe('sidor som inte går att visa', () => {
 
   it('säger ifrån när en cachad sida har slutat sändas', async () => {
     const { unmount } = openOn('377')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     unmount()
 
     // SVT has taken the page off air since it was cached.
@@ -289,13 +394,13 @@ describe('sidor som inte går att visa', () => {
     openOn('377')
 
     expect(await screen.findByText('Sidan ej i sändning')).toBeInTheDocument()
-    expect(screen.queryAllByRole('img')).toHaveLength(0)
+    expect(screen.queryAllByRole('group')).toHaveLength(0)
     expect(screen.getByRole('button', { name: 'Sida 376' })).toBeInTheDocument()
   })
 
   it('glömmer den cachade sidan när den har slutat sändas', async () => {
     const { unmount } = openOn('377')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     unmount()
 
     takeOffAir('377', { prev: '376', next: '378' })
@@ -333,7 +438,7 @@ describe('sidor som inte går att visa', () => {
     stopFailing('104')
     await userEvent.click(screen.getByRole('button', { name: 'Försök igen' }))
 
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     expect(screen.queryByText('Kunde inte hämta sidan')).not.toBeInTheDocument()
   })
 })
@@ -342,20 +447,26 @@ describe('färskhet och cache', () => {
   // AE9
   it('visar den cachade bilden direkt och märker den som cachad', async () => {
     const { unmount } = openOn('100')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     unmount()
 
     // Offline: only the cached copy can produce a frame.
     failNextFor('100')
     openOn('100')
 
+    // The cached copy paints its frame on the very first render, before any
+    // network answer could have arrived.
     expect(frames()).toHaveLength(1)
     expect(screen.getByText('Cachad · uppdaterar…')).toBeInTheDocument()
+
+    // And it is the cached page, decoded: the failed fetch produced nothing.
+    await drawnFrames(1)
+    expect(frames()[0]).toHaveTextContent('Angrep elever med svärd - flicka dödad')
   })
 
   it('behåller den cachade sidan när nätet är nere', async () => {
     const { unmount } = openOn('377')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     unmount()
 
     failNextFor('377')
@@ -452,7 +563,7 @@ describe('när lagringen är full', () => {
     const { attempted, entries } = useFullStore({})
     openOn('331')
 
-    await waitFor(() => expect(frames()).toHaveLength(14), { timeout: 5000 })
+    await drawnFrames(14, 10000)
     expect(attempted).toContain('texttv:page:331')
     expect(entries.has('texttv:page:331')).toBe(false)
   })
@@ -462,7 +573,7 @@ describe('när lagringen är full', () => {
     const { entries } = useFullStore(cached(pages))
     openOn('331')
 
-    await waitFor(() => expect(frames()).toHaveLength(14), { timeout: 5000 })
+    await drawnFrames(14, 10000)
 
     const survivors = pages.filter((p) => entries.has(`texttv:page:${p}`))
     expect(survivors.length).toBeGreaterThanOrEqual(pages.length - 3)
@@ -493,7 +604,7 @@ describe('var appen börjar', () => {
 
   it('hämtar alltid om den återställda sidan, aldrig bara från lagringen', async () => {
     const { unmount } = openOn('377')
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    await drawnFrames(1)
     unmount()
 
     // A stored copy exists, but a fresh fetch must still happen.

@@ -1,4 +1,15 @@
 /*
+ * Bedstead, which redraws the SAA5050 teletext character generator SVT's own
+ * frames descend from. Public domain (CC0); the upstream release is kept in
+ * misc/bedstead-3.261. The url is relative so it survives a project-path base.
+ */
+@font-face {
+  font-family: 'Bedstead';
+  src: url('../bedstead.woff2') format('woff2');
+  font-display: swap;
+}
+
+/*
  * Black everywhere. The frame's own background is black, so any other colour
  * would draw a visible seam around the picture, and a light shell would put a
  * black rectangle in a white field. The system theme is deliberately ignored.
@@ -111,9 +122,121 @@ body {
   image-rendering: pixelated;
 }
 
+/*
+ * The decoded page, drawn as text on the GIF's own geometry.
+ *
+ * The frame is the query container, so one cell is a fixed fraction of its
+ * width (13/520) and everything - position, size and type - is derived from
+ * that. The grid therefore fills exactly the box the GIF used to, at any
+ * column width, without measuring anything in JavaScript.
+ */
+.text-frame {
+  position: absolute;
+  inset: 0;
+  container-type: inline-size;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cell-w: 2.5cqw;
+  --cell-h: calc(var(--cell-w) * 16 / 13);
+  /*
+   * One glyph has to occupy exactly one 13px column, and a face's advance is a
+   * property of its design: Bedstead Extended sets 0.75em, so a cell's worth of
+   * type is the cell divided by that. Swapping in another face means changing
+   * this one number to its advance ratio - the run's letter-spacing then takes
+   * up whatever slack is left, so the grid stays exact either way.
+   */
+  --advance: 0.75;
+}
+
+.text-frame__row {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: calc(var(--row) * var(--cell-h));
+  height: var(--cell-h);
+  font-size: calc(var(--cell-w) / var(--advance));
+  line-height: var(--cell-h);
+}
+
+/*
+ * A double-height row covers the row beneath it. Teletext doubles the height
+ * only - the glyph keeps its one-cell advance - so the row is scaled, not set
+ * in a larger size: a bigger font-size would widen every character too and a
+ * 40-column row would draw 80 columns wide.
+ */
+.text-frame__row--double {
+  transform: scaleY(2);
+  transform-origin: top left;
+}
+
+.text-frame__run,
+.text-frame__mosaic,
+.text-frame__slice {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  left: calc(var(--col) * var(--cell-w));
+  width: calc(var(--width) * var(--cell-w));
+}
+
+/*
+ * pre keeps the runs of spaces that hold the page's columns apart.
+ *
+ * Runs are placed per column but their characters flow at whatever advance the
+ * face happens to have, so the tracking makes up the difference: 1ch is the
+ * face's own advance, and the padding brings every character up to exactly one
+ * cell. Any monospace fallback therefore lands on the same columns as the
+ * mosaics and GIF slices beside it. The trailing space after the last
+ * character falls outside the run's own box and disturbs nothing, since every
+ * run is absolutely positioned. Vertical scaling leaves the horizontal metrics
+ * alone, so 1ch means the same thing on a double-height row.
+ */
+.text-frame__run {
+  white-space: pre;
+  letter-spacing: calc(var(--cell-w) - 1ch);
+  /* The point of drawing type rather than a picture: the page can be copied. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/*
+ * Block graphics as painted bands rather than a character, so they never depend
+ * on the face having sextant glyphs. The bands are the ones SVT draws: x splits
+ * at 6 of 13, y at 5 and 11 of 16, so neighbouring cells tile without a seam.
+ */
+.text-frame__mosaic {
+  background-repeat: no-repeat;
+}
+
+/* R6: a glyph the table does not know falls back to its own slice of the GIF. */
+.text-frame__slice {
+  background-repeat: no-repeat;
+  background-size: calc(var(--cols) * var(--cell-w)) calc(var(--rows) * var(--cell-h));
+  background-position: calc(var(--col) * var(--cell-w) * -1) calc(var(--row) * var(--cell-h) * -1);
+  image-rendering: pixelated;
+}
+
+/*
+ * A slice is a piece of the GIF, not type, so it must not be stretched by the
+ * row's scaling. It undoes the scale and takes both of the grid rows it covers
+ * instead, which is the pair the double-height cell was read from.
+ */
+.text-frame__row--double .text-frame__slice {
+  height: calc(var(--cell-h) * 2);
+  transform: scaleY(0.5);
+  transform-origin: top left;
+}
+
+/*
+ * The layer spans the whole frame but must not swallow the drag: the page
+ * underneath is real text now, and a transparent sheet over all of it would
+ * make the page unselectable. Only the links themselves take the pointer.
+ */
 .hotspots {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
 /*
@@ -138,6 +261,7 @@ body {
  */
 .hotspot {
   position: absolute;
+  pointer-events: auto;
   transform: translateY(-50%);
   margin: 0;
   padding: 0;
@@ -159,7 +283,8 @@ body {
   column-gap: 16px;
   row-gap: 2px;
   margin-top: 2px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The frames' own face, so the shortcuts read as a continuation of the page. */
+  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* font: inherit or the UA's own button font wins and the monospace is lost. */
@@ -253,7 +378,13 @@ body {
 
 /* Bottom bar */
 
+/*
+ * Also the frames' face, so the whole app reads as one surface. The arrows are
+ * not in it and fall back per glyph, which is what we want - a teletext arrow
+ * would be a mosaic, and these are chrome rather than page content.
+ */
 .bar {
+  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
   display: flex;
   justify-content: center;
   height: calc(var(--bar-height) + env(safe-area-inset-bottom));
