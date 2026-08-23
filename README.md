@@ -3,7 +3,15 @@
 A progressive web app that wraps [SVT Text](https://www.svt.se/text-tv/100)
 (Swedish teletext) in an installable, touch-friendly reader.
 
-It renders the exact teletext frames SVT publishes, and adds the thing the
+SVT publishes each page as a picture. This app decodes that picture back into
+a character grid and **re-draws the page as real text**, in a face chosen for
+reading on a phone and on rows set further apart than broadcast. It is the same
+page, laid out on the same 40-column grid and in the same colours, but it is a
+rendering rather than a copy — readability was preferred over the exact
+teletext look. Where a character cannot be identified, that cell falls back to
+its own slice of SVT's picture, so a page always reads correctly.
+
+Drawn as text, the page can be selected and copied, and it adds the thing the
 mobile web page loses: **the page references printed inside the frame are real,
 finger-sized tap targets**. Page 100 is the home screen. There are no accounts,
 no settings and no favourites.
@@ -54,6 +62,8 @@ Node 20 or later.
 | `npm run build` | Typecheck and produce a production build in `dist/`. |
 | `npm run preview` | Serve the production build. |
 | `npm run icons` | Regenerate the app icons in `public/`. |
+| `npm run glyphs` | Rebuild the cell-to-character table from the fixtures. |
+| `npm run glyphs:check` | Fail if the committed table no longer matches its inputs. |
 
 ## Development against the mock
 
@@ -89,6 +99,11 @@ dev gives a transport error rather than SVT's "not broadcast" answer.
   carrying its neighbours, or a transport error. The API answers **HTTP 200 for
   pages that do not exist**, so success is decided by the payload's `status`
   field and never by the HTTP status code.
+- `src/teletext/` — decodes a frame GIF into a grid of cells (character,
+  colours, block graphics) and hands it to `TextFrame`, which draws the page as
+  positioned runs of text. `glyphs.generated.ts` is the lookup table from cell
+  bitmap to character, built from the fixtures by `npm run glyphs`. A cell the
+  table does not know, or a frame that does not decode, falls back to the GIF.
 - `src/imageMap.ts` — parses SVT's `<map>` string into rects, and resolves a
   touch to the rect whose centre is nearest. Pure, and directly unit-tested.
 - `src/useTextTv.ts` — current page, freshness and caching. Navigation goes
@@ -97,11 +112,13 @@ dev gives a transport error rather than SVT's "not broadcast" answer.
 - `src/pageStore.ts` — `localStorage` copies of seen pages, so a visited page
   paints instantly and still renders with no network.
 
-Frames are 520x400 with a 40x25 character grid, so a cell is 13x16 px and a
-page reference is 39x16 px. At phone width the frame renders at about 0.75x,
-making a reference roughly 29x12 CSS px — so tap targets are expanded
-vertically to 44 px, centred on the printed rect, and overlaps resolve to the
-nearest centre.
+Frames are 520x400 with a 40x25 character grid, so a broadcast cell is 13x16 px
+and a page reference is 39x16 px. Every measurement in the CSS derives from
+that cell, including the extra row spacing: `--leading` in `src/index.css`
+stretches the cell vertically and the frame grows with it, so the grid stays
+whole. Even so, a reference is only about 29x15 CSS px at phone width — so tap
+targets are expanded vertically to 44 px, centred on the printed rect, and
+overlaps resolve to the nearest centre.
 
 ## Tests
 
@@ -112,9 +129,10 @@ nearest centre.
   rendering, tapping a link, arrow stepping, typing a number, the
   not-broadcast message, the transport error and its retry, the
   restore-or-reset-to-100 rule, and the freshness indicator.
-- **`parseImageMap` and `resolveHotspot` as pure functions**, for the
-  combinatorial cases — attribute casing, separators, malformed coordinates —
-  that would be slow and indirect to drive through the DOM.
+- **The pure modules directly** — `parseImageMap` and `resolveHotspot` for the
+  combinatorial cases (attribute casing, separators, malformed coordinates)
+  that would be slow and indirect to drive through the DOM, and the teletext
+  decoder for the cell grid it recovers from a captured frame.
 
 The API client and the individual components have no unit tests by design;
 they are covered through the app-level seam.
