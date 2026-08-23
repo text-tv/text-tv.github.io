@@ -4,9 +4,11 @@ import { NotBroadcast } from './components/NotBroadcast'
 import { PageView } from './components/PageView'
 import { TransportError } from './components/TransportError'
 import { HOME_PAGE, useTextTv } from './useTextTv'
+import { useVisualViewport } from './useVisualViewport'
 
 export function App() {
   const { pageNumber, result, stale, updatedAt, navigate, reload } = useTextTv()
+  useVisualViewport()
   // Both a page and a not-broadcast result carry the neighbours the arrows use.
   const neighbours = result?.kind === 'error' ? undefined : result
 
