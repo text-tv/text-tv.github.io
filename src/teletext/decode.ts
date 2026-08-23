@@ -32,16 +32,38 @@ export const resetDecodeCache = (): void => {
   inFlight.clear()
 }
 
-/** The RGBA pixel at `offset`, packed into one 0xRRGGBBAA number. */
-const pack = (pixels: Uint8ClampedArray, offset: number): number =>
-  ((pixels[offset] << 24) |
-    (pixels[offset + 1] << 16) |
-    (pixels[offset + 2] << 8) |
-    pixels[offset + 3]) >>>
-  0
+/**
+ * The RGBA pixel at `offset`, packed into one 0xRRGGBBAA number, with each
+ * channel snapped to off or full.
+ *
+ * Teletext has eight colours and every channel in them is 0 or 255, so nothing
+ * is lost - but a great deal is gained. A colour-managed display makes the
+ * canvas hand back values a step either side of the palette, so one white pixel
+ * reads 255,255,255 and its neighbour 255,255,254. Compared exactly, a cell of
+ * two colours looks like a cell of five, every frame trips the third-colour
+ * guard below, and the whole page falls back to the GIF - on the machines of
+ * everyone whose display is not plain sRGB.
+ */
+const pack = (pixels: Uint8ClampedArray, offset: number): number => {
+  const r = pixels[offset] < 128 ? 0 : 255
+  const g = pixels[offset + 1] < 128 ? 0 : 255
+  const b = pixels[offset + 2] < 128 ? 0 : 255
+  return ((r << 24) | (g << 16) | (b << 8) | 255) >>> 0
+}
 
 /** Packed 0xRRGGBBAA back to CSS `#rrggbb`; teletext frames are fully opaque. */
 const hex = (colour: number): string => `#${(colour >>> 8).toString(16).padStart(6, '0')}`
+
+/**
+ * Says why a frame is being drawn as a picture instead of as text.
+ *
+ * The fallback is deliberately invisible - the page still reads correctly, just
+ * blurred - which is exactly how it can be in force everywhere and go unnoticed.
+ * Naming the reason is what makes that discoverable.
+ */
+const warn = (reason: string): void => {
+  console.warn(`[text-tv] frame not rendered as text, falling back to the GIF: ${reason}`)
+}
 
 /**
  * Builds the blob straight from the base64 payload rather than fetching the
@@ -101,6 +123,7 @@ const toCells = (pixels: Uint8ClampedArray): Cell[] | null => {
             second = colour
             secondCount += 1
           } else {
+            warn(`cell at row ${row} column ${col} has more than two colours`)
             return null
           }
         }
@@ -147,16 +170,21 @@ const decode = async (dataUrl: string): Promise<Cell[] | null | undefined> => {
     const bitmap = await createImageBitmap(toBlob(dataUrl))
     if (bitmap.width !== FRAME_WIDTH || bitmap.height !== FRAME_HEIGHT) {
       bitmap.close?.()
+      warn(`frame is ${bitmap.width}x${bitmap.height}, not ${FRAME_WIDTH}x${FRAME_HEIGHT}`)
       return null
     }
 
     const context = context2d()
-    if (context === null) return undefined
+    if (context === null) {
+      warn('the browser gave no 2d canvas context')
+      return undefined
+    }
     context.drawImage(bitmap, 0, 0)
     bitmap.close?.()
 
     return toCells(context.getImageData(0, 0, FRAME_WIDTH, FRAME_HEIGHT).data)
-  } catch {
+  } catch (error) {
+    warn(error instanceof Error ? error.message : String(error))
     return undefined
   }
 }

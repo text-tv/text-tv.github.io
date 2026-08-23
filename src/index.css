@@ -195,6 +195,9 @@ body {
 .text-frame__run {
   white-space: pre;
   letter-spacing: calc(var(--cell-w) - 1ch);
+  /* The point of drawing type rather than a picture: the page can be copied. */
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /*
@@ -225,9 +228,15 @@ body {
   transform-origin: top left;
 }
 
+/*
+ * The layer spans the whole frame but must not swallow the drag: the page
+ * underneath is real text now, and a transparent sheet over all of it would
+ * make the page unselectable. Only the links themselves take the pointer.
+ */
 .hotspots {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
 /*
@@ -252,6 +261,7 @@ body {
  */
 .hotspot {
   position: absolute;
+  pointer-events: auto;
   transform: translateY(-50%);
   margin: 0;
   padding: 0;
@@ -273,7 +283,8 @@ body {
   column-gap: 16px;
   row-gap: 2px;
   margin-top: 2px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The frames' own face, so the shortcuts read as a continuation of the page. */
+  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* font: inherit or the UA's own button font wins and the monospace is lost. */
@@ -367,7 +378,13 @@ body {
 
 /* Bottom bar */
 
+/*
+ * Also the frames' face, so the whole app reads as one surface. The arrows are
+ * not in it and fall back per glyph, which is what we want - a teletext arrow
+ * would be a mosaic, and these are chrome rather than page content.
+ */
 .bar {
+  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
   display: flex;
   justify-content: center;
   height: calc(var(--bar-height) + env(safe-area-inset-bottom));
