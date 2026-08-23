@@ -15,7 +15,14 @@
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
+  --viewport-height: 100vh;
   color-scheme: dark only;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --viewport-height: 100dvh;
+  }
 }
 
 * {
@@ -31,10 +38,25 @@ body {
   color: var(--ink);
   font-family: system-ui, -apple-system, sans-serif;
   overscroll-behavior: none;
+  overflow: hidden;
 }
 
+/*
+ * The shell is pinned to the visual viewport, not the document: the keyboard
+ * shrinks it instead of scrolling the page away. --viewport-height is written
+ * by useVisualViewport and falls back to the units the engine has - a dvh
+ * fallback inside var() would compute to auto where dvh is unknown, collapsing
+ * the shell. --viewport-offset follows the viewport when it is shifted.
+ */
 .app {
-  min-height: 100dvh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--viewport-height);
+  transform: translateY(var(--viewport-offset, 0px));
+  display: flex;
+  flex-direction: column;
   background: #000;
   padding-top: env(safe-area-inset-top);
   padding-left: env(safe-area-inset-left);
@@ -57,11 +79,13 @@ body {
 }
 
 /*
- * The bar is opaque, so the scroll container carries matching bottom padding
- * and the last sub-page is never permanently hidden behind it.
+ * The only scroll container in the app. min-height: 0 keeps the flex item from
+ * growing the shell instead of scrolling itself.
  */
 .content {
-  padding-bottom: calc(var(--bar-height) + env(safe-area-inset-bottom) + 16px);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .pages {
@@ -160,10 +184,6 @@ body {
 /* Bottom bar */
 
 .bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
   justify-content: center;
   height: calc(var(--bar-height) + env(safe-area-inset-bottom));
