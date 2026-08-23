@@ -5,6 +5,13 @@
  */
 :root {
   --bar-height: 56px;
+  /*
+   * The reading column. SVT's frames are 520px wide, so a hair above native is
+   * as large as they should ever be drawn: past that the character cells just
+   * magnify and a whole page stops fitting an iPad's height. Phones are
+   * narrower than this, so the cap never binds there.
+   */
+  --frame-max: 560px;
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
@@ -61,6 +68,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: var(--frame-max);
+  margin-inline: auto;
 }
 
 /* Teletext frames */
@@ -156,13 +165,22 @@ body {
   right: 0;
   bottom: 0;
   display: flex;
+  justify-content: center;
+  height: calc(var(--bar-height) + env(safe-area-inset-bottom));
+  padding: 0 0 env(safe-area-inset-bottom);
+  background: #000;
+  border-top: 1px solid #1c1c1c;
+}
+
+/* The controls follow the reading column; the bar's black spans the viewport. */
+.bar__inner {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: calc(var(--bar-height) + env(safe-area-inset-bottom));
-  padding: 0 12px env(safe-area-inset-bottom);
-  background: #000;
-  border-top: 1px solid #1c1c1c;
+  width: 100%;
+  max-width: var(--frame-max);
+  padding: 0 12px;
 }
 
 .bar__input {
