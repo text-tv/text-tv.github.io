@@ -11,6 +11,35 @@ import { CELL_HEIGHT, CELL_WIDTH, GRID_COLS, GRID_ROWS, type Cell } from './type
 const decoded = new Map<string, Cell[] | null>()
 const inFlight = new Map<string, Promise<Cell[] | null>>()
 
+/**
+ * The keys are whole base64 frames, so the cache is bounded rather than left to
+ * grow across an installed session. Room for the widest page's 14 sub-pages
+ * several times over, which covers a run of back-and-forth navigation.
+ */
+const CACHE_LIMIT = 64
+
+const remember = (dataUrl: string, cells: Cell[] | null): void => {
+  decoded.set(dataUrl, cells)
+  while (decoded.size > CACHE_LIMIT) decoded.delete(decoded.keys().next().value as string)
+}
+
+/**
+ * Empties both caches, so a test never inherits another's decode. Exported for
+ * the tests alone; the app decodes into a cache that lives as long as it does.
+ */
+export const resetDecodeCache = (): void => {
+  decoded.clear()
+  inFlight.clear()
+}
+
+/** The RGBA pixel at `offset`, packed into one 0xRRGGBBAA number. */
+const pack = (pixels: Uint8ClampedArray, offset: number): number =>
+  ((pixels[offset] << 24) |
+    (pixels[offset + 1] << 16) |
+    (pixels[offset + 2] << 8) |
+    pixels[offset + 3]) >>>
+  0
+
 /** Packed 0xRRGGBBAA back to CSS `#rrggbb`; teletext frames are fully opaque. */
 const hex = (colour: number): string => `#${(colour >>> 8).toString(16).padStart(6, '0')}`
 
@@ -46,6 +75,9 @@ const context2d = (): OffscreenCanvasRenderingContext2D | CanvasRenderingContext
  */
 const toCells = (pixels: Uint8ClampedArray): Cell[] | null => {
   const cells: Cell[] = []
+  // Both passes read the same 208 colours, so they are packed once per cell
+  // into a buffer that every cell reuses.
+  const cell = new Uint32Array(CELL_WIDTH * CELL_HEIGHT)
 
   for (let row = 0; row < GRID_ROWS; row += 1) {
     for (let col = 0; col < GRID_COLS; col += 1) {
@@ -60,12 +92,8 @@ const toCells = (pixels: Uint8ClampedArray): Cell[] | null => {
       for (let y = 0; y < CELL_HEIGHT; y += 1) {
         let offset = ((originY + y) * FRAME_WIDTH + originX) * 4
         for (let x = 0; x < CELL_WIDTH; x += 1, offset += 4) {
-          const colour =
-            ((pixels[offset] << 24) |
-              (pixels[offset + 1] << 16) |
-              (pixels[offset + 2] << 8) |
-              pixels[offset + 3]) >>>
-            0
+          const colour = pack(pixels, offset)
+          cell[y * CELL_WIDTH + x] = colour
           if (first === -1 || colour === first) {
             first = colour
             firstCount += 1
@@ -90,15 +118,8 @@ const toCells = (pixels: Uint8ClampedArray): Cell[] | null => {
       const mask = new Uint16Array(CELL_HEIGHT)
       for (let y = 0; y < CELL_HEIGHT; y += 1) {
         let bits = 0
-        let offset = ((originY + y) * FRAME_WIDTH + originX) * 4
-        for (let x = 0; x < CELL_WIDTH; x += 1, offset += 4) {
-          const colour =
-            ((pixels[offset] << 24) |
-              (pixels[offset + 1] << 16) |
-              (pixels[offset + 2] << 8) |
-              pixels[offset + 3]) >>>
-            0
-          if (colour !== background) bits |= 1 << x
+        for (let x = 0; x < CELL_WIDTH; x += 1) {
+          if (cell[y * CELL_WIDTH + x] !== background) bits |= 1 << x
         }
         mask[y] = bits
       }
@@ -114,33 +135,49 @@ const toCells = (pixels: Uint8ClampedArray): Cell[] | null => {
   return cells
 }
 
-const decode = async (dataUrl: string): Promise<Cell[] | null> => {
+/**
+ * `null` is a refusal that would repeat for this frame - the wrong size, or a
+ * cell of more than two colours - and is worth caching. `undefined` is a
+ * failure that may not repeat, such as a rejected bitmap or a context the
+ * browser withheld from a backgrounded tab, and is left uncached so the next
+ * render tries again.
+ */
+const decode = async (dataUrl: string): Promise<Cell[] | null | undefined> => {
   try {
     const bitmap = await createImageBitmap(toBlob(dataUrl))
-    if (bitmap.width !== FRAME_WIDTH || bitmap.height !== FRAME_HEIGHT) return null
+    if (bitmap.width !== FRAME_WIDTH || bitmap.height !== FRAME_HEIGHT) {
+      bitmap.close?.()
+      return null
+    }
 
     const context = context2d()
-    if (context === null) return null
+    if (context === null) return undefined
     context.drawImage(bitmap, 0, 0)
     bitmap.close?.()
 
     return toCells(context.getImageData(0, 0, FRAME_WIDTH, FRAME_HEIGHT).data)
   } catch {
-    return null
+    return undefined
   }
 }
 
 /** Resolves to the frame's 1000 cells, row-major, or `null` when it cannot be read as a grid. */
 export async function decodeFrame(dataUrl: string): Promise<Cell[] | null> {
   const cached = decoded.get(dataUrl)
-  if (cached !== undefined) return cached
+  if (cached !== undefined) {
+    // Re-inserting moves the key to the back of the eviction order.
+    decoded.delete(dataUrl)
+    decoded.set(dataUrl, cached)
+    return cached
+  }
 
   const pending = inFlight.get(dataUrl)
   if (pending !== undefined) return pending
 
   const run = decode(dataUrl).then((cells) => {
-    decoded.set(dataUrl, cells)
     inFlight.delete(dataUrl)
+    if (cells === undefined) return null
+    remember(dataUrl, cells)
     return cells
   })
   inFlight.set(dataUrl, run)

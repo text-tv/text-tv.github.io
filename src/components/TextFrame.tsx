@@ -9,15 +9,31 @@ interface Props {
 }
 
 /**
- * A mosaic cell's six sextants, as fractions of its 13x16 box.
+ * A mosaic cell's six sextants, as three stacked background bands.
  *
  * The bands are neither halves nor thirds: SVT splits x at 6 and y at 5 and 11,
- * and only these proportions tile with the neighbouring cells.
+ * and only these proportions tile with the neighbouring cells. One element per
+ * cell rather than seven - a page carries hundreds of them.
  */
-const MOSAIC_COLUMNS = '6fr 7fr'
-const MOSAIC_ROWS = '5fr 6fr 5fr'
-/** Bit order, top-left first and bottom-right last. */
-const SEXTANTS = [0, 1, 2, 3, 4, 5]
+const MOSAIC_SPLIT_X = 'calc(100% * 6 / 13)'
+/** Each band's height, and the position that lands it at its own y offset. */
+const MOSAIC_BANDS = [
+  { size: '100% 31.25%', position: '0 0%' },
+  { size: '100% 37.5%', position: '0 50%' },
+  { size: '100% 31.25%', position: '0 100%' },
+]
+
+/** Bit order, top-left first and bottom-right last; an unlit sextant is background. */
+const mosaicStyle = (bits: number, fg: string, bg: string): CSSProperties => ({
+  backgroundColor: bg,
+  backgroundImage: MOSAIC_BANDS.map((_, band) => {
+    const left = (bits >> (band * 2)) & 1 ? fg : bg
+    const right = (bits >> (band * 2 + 1)) & 1 ? fg : bg
+    return `linear-gradient(to right, ${left} ${MOSAIC_SPLIT_X}, ${right} ${MOSAIC_SPLIT_X})`
+  }).join(', '),
+  backgroundSize: MOSAIC_BANDS.map((band) => band.size).join(', '),
+  backgroundPosition: MOSAIC_BANDS.map((band) => band.position).join(', '),
+})
 
 /** Grid coordinates travel as custom properties; the CSS turns them into a box. */
 const vars = (values: Record<string, number>): CSSProperties => values as CSSProperties
@@ -31,17 +47,8 @@ function RunElement({ run, gifDataUrl }: { run: Run; gifDataUrl: string }) {
       <span
         className="text-frame__mosaic"
         aria-hidden="true"
-        style={{
-          ...box,
-          backgroundColor: run.bg,
-          gridTemplateColumns: MOSAIC_COLUMNS,
-          gridTemplateRows: MOSAIC_ROWS,
-        }}
-      >
-        {SEXTANTS.map((bit) => (
-          <span key={bit} style={{ background: (run.bits >> bit) & 1 ? run.fg : 'transparent' }} />
-        ))}
-      </span>
+        style={{ ...box, ...mosaicStyle(run.bits, run.fg, run.bg) }}
+      />
     )
   }
 

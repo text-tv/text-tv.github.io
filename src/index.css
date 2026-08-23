@@ -1,11 +1,11 @@
 /*
- * The teletext face, expected at public/teletext.woff2. The file is not in the
- * repo yet - it is supplied separately - so the stack also names monospace and
- * the app works today. The url is relative so it survives a project-path base.
+ * Bedstead, which redraws the SAA5050 teletext character generator SVT's own
+ * frames descend from. Public domain (CC0); the upstream release is kept in
+ * misc/bedstead-3.261. The url is relative so it survives a project-path base.
  */
 @font-face {
-  font-family: 'Teletext';
-  src: url('../teletext.woff2') format('woff2');
+  font-family: 'Bedstead';
+  src: url('../bedstead.woff2') format('woff2');
   font-display: swap;
 }
 
@@ -136,27 +136,38 @@ body {
   container-type: inline-size;
   overflow: hidden;
   background: #000;
-  font-family: 'Teletext', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: 'Bedstead', ui-monospace, SFMono-Regular, Menlo, monospace;
   --cell-w: 2.5cqw;
   --cell-h: calc(var(--cell-w) * 16 / 13);
+  /*
+   * One glyph has to occupy exactly one 13px column, and a face's advance is a
+   * property of its design: Bedstead Extended sets 0.75em, so a cell's worth of
+   * type is the cell divided by that. Swapping in another face means changing
+   * this one number to its advance ratio - the run's letter-spacing then takes
+   * up whatever slack is left, so the grid stays exact either way.
+   */
+  --advance: 0.75;
 }
 
-/* Type is set at the cell's height: the face is drawn on a 13x16 cell. */
 .text-frame__row {
   position: absolute;
   left: 0;
   width: 100%;
   top: calc(var(--row) * var(--cell-h));
   height: var(--cell-h);
-  font-size: var(--cell-h);
+  font-size: calc(var(--cell-w) / var(--advance));
   line-height: var(--cell-h);
 }
 
-/* A double-height row is drawn twice as tall and covers the row beneath it. */
+/*
+ * A double-height row covers the row beneath it. Teletext doubles the height
+ * only - the glyph keeps its one-cell advance - so the row is scaled, not set
+ * in a larger size: a bigger font-size would widen every character too and a
+ * 40-column row would draw 80 columns wide.
+ */
 .text-frame__row--double {
-  height: calc(var(--cell-h) * 2);
-  font-size: calc(var(--cell-h) * 2);
-  line-height: calc(var(--cell-h) * 2);
+  transform: scaleY(2);
+  transform-origin: top left;
 }
 
 .text-frame__run,
@@ -169,18 +180,30 @@ body {
   width: calc(var(--width) * var(--cell-w));
 }
 
-/* pre keeps the runs of spaces that hold the page's columns apart. */
+/*
+ * pre keeps the runs of spaces that hold the page's columns apart.
+ *
+ * Runs are placed per column but their characters flow at whatever advance the
+ * face happens to have, so the tracking makes up the difference: 1ch is the
+ * face's own advance, and the padding brings every character up to exactly one
+ * cell. Any monospace fallback therefore lands on the same columns as the
+ * mosaics and GIF slices beside it. The trailing space after the last
+ * character falls outside the run's own box and disturbs nothing, since every
+ * run is absolutely positioned. Vertical scaling leaves the horizontal metrics
+ * alone, so 1ch means the same thing on a double-height row.
+ */
 .text-frame__run {
   white-space: pre;
+  letter-spacing: calc(var(--cell-w) - 1ch);
 }
 
 /*
- * Block graphics as six boxes rather than a character, so they never depend on
- * the face having sextant glyphs. The bands are the ones SVT draws: x splits at
- * 6 of 13, y at 5 and 11 of 16, so neighbouring cells tile without a seam.
+ * Block graphics as painted bands rather than a character, so they never depend
+ * on the face having sextant glyphs. The bands are the ones SVT draws: x splits
+ * at 6 of 13, y at 5 and 11 of 16, so neighbouring cells tile without a seam.
  */
 .text-frame__mosaic {
-  display: grid;
+  background-repeat: no-repeat;
 }
 
 /* R6: a glyph the table does not know falls back to its own slice of the GIF. */
@@ -189,6 +212,17 @@ body {
   background-size: calc(var(--cols) * var(--cell-w)) calc(var(--rows) * var(--cell-h));
   background-position: calc(var(--col) * var(--cell-w) * -1) calc(var(--row) * var(--cell-h) * -1);
   image-rendering: pixelated;
+}
+
+/*
+ * A slice is a piece of the GIF, not type, so it must not be stretched by the
+ * row's scaling. It undoes the scale and takes both of the grid rows it covers
+ * instead, which is the pair the double-height cell was read from.
+ */
+.text-frame__row--double .text-frame__slice {
+  height: calc(var(--cell-h) * 2);
+  transform: scaleY(0.5);
+  transform-origin: top left;
 }
 
 .hotspots {

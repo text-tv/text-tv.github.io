@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "mock": "node scripts/build-mock-db.mjs && json-server mock/db.json --port 3001",
     "glyphs": "node scripts/glyphs.mjs",
+    "glyphs:check": "node scripts/glyphs.mjs --check",
     "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {

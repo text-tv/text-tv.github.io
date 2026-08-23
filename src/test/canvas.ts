@@ -1,4 +1,5 @@
 import { decodeGif } from '../../scripts/gif.mjs'
+import { CELL_HEIGHT, CELL_WIDTH } from '../teletext/types'
 
 /**
  * A canvas for happy-dom, which ships none.
@@ -18,16 +19,92 @@ interface Frame {
 /** Pixels are attached to the stand-in bitmap and follow it into `drawImage`. */
 const frames = new WeakMap<object, Frame>()
 
-/** Set while a test wants decoding to fail, for the R10 `<img>` fallback. */
-let broken = false
+/**
+ * How the frames decoded from here on are damaged, if at all.
+ *
+ * Each value is a different refusal in `decodeFrame`: a bitmap that is not
+ * 520x400, a cell of three colours, and a cell whose mask no glyph in the
+ * table matches.
+ */
+type Damage = 'none' | 'size' | 'three-colour' | 'unknown-glyph'
+
+let damage: Damage = 'none'
 
 /** Makes every frame decoded from here on unreadable, so the fallback shows. */
 export const breakFrameDecoding = (): void => {
-  broken = true
+  damage = 'size'
+}
+
+/** Puts a third colour in one cell, which abandons the whole frame (R10). */
+export const addThreeColourCell = (): void => {
+  damage = 'three-colour'
+}
+
+/** Puts a mask the glyph table has never seen in one cell, for the R6 slice. */
+export const addUnknownCell = (): void => {
+  damage = 'unknown-glyph'
+}
+
+/** Decodes that have been started but not let through, in order. */
+let held: (() => void)[] | null = null
+
+/** Holds every decode from here on, so a test can navigate away mid-decode. */
+export const holdFrameDecoding = (): void => {
+  held = []
+}
+
+/** How many decodes are waiting to be let through. */
+export const heldFrames = (): number => held?.length ?? 0
+
+/** Lets the decode started most recently finish, leaving the earlier ones held. */
+export const releaseNewestFrame = (): void => {
+  held?.pop()?.()
+}
+
+/** Lets every held decode finish, and stops holding new ones. */
+export const releaseFrameDecoding = (): void => {
+  const waiting = held ?? []
+  held = null
+  for (const release of waiting) release()
 }
 
 export const resetCanvasStub = (): void => {
-  broken = false
+  damage = 'none'
+  releaseFrameDecoding()
+}
+
+const MAGENTA = [255, 0, 255]
+const CYAN = [0, 255, 255]
+
+const paint = (rgba: Uint8ClampedArray, width: number, x: number, y: number, [r, g, b]: number[]) => {
+  const offset = (y * width + x) * 4
+  rgba[offset] = r
+  rgba[offset + 1] = g
+  rgba[offset + 2] = b
+  rgba[offset + 3] = 255
+}
+
+/**
+ * Repaints the frame's top-left 13x16 cell, black behind whichever damage the
+ * test asked for, so the rest of the page still decodes as itself.
+ */
+const damageFirstCell = (rgba: Uint8ClampedArray, width: number): void => {
+  if (damage !== 'three-colour' && damage !== 'unknown-glyph') return
+  for (let y = 0; y < CELL_HEIGHT; y += 1) {
+    for (let x = 0; x < CELL_WIDTH; x += 1) paint(rgba, width, x, y, [0, 0, 0])
+  }
+  if (damage === 'three-colour') {
+    paint(rgba, width, 0, 0, MAGENTA)
+    paint(rgba, width, 1, 0, CYAN)
+    return
+  }
+  // Row y lights bits y + 1, which is the mask resolve.test.ts also treats as
+  // one the table cannot hold.
+  for (let y = 0; y < CELL_HEIGHT; y += 1) {
+    for (let x = 0; x < CELL_WIDTH; x += 1) {
+      if (((y + 1) >> x) & 1) paint(rgba, width, x, y, MAGENTA)
+    }
+  }
 }
 
 const toRgba = (gif: ReturnType<typeof decodeGif>): Uint8ClampedArray => {
@@ -40,16 +117,18 @@ const toRgba = (gif: ReturnType<typeof decodeGif>): Uint8ClampedArray => {
     rgba[i * 4 + 2] = b
     rgba[i * 4 + 3] = 255
   }
+  damageFirstCell(rgba, gif.w)
   return rgba
 }
 
 const fakeBitmap = async (source: Blob): Promise<ImageBitmap> => {
+  if (held !== null) await new Promise<void>((resolve) => held?.push(resolve))
   const gif = decodeGif(Buffer.from(await source.arrayBuffer()))
   const bitmap = {
     // A wrong natural size is how the frame is broken: `decodeFrame` refuses
     // anything that is not 520x400, which is a failure path it really has.
-    width: broken ? 1 : gif.w,
-    height: broken ? 1 : gif.h,
+    width: damage === 'size' ? 1 : gif.w,
+    height: damage === 'size' ? 1 : gif.h,
     close: () => {},
   }
   frames.set(bitmap, { width: gif.w, height: gif.h, rgba: toRgba(gif) })

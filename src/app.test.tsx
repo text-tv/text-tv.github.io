@@ -1,8 +1,17 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from './App'
-import { breakFrameDecoding } from './test/canvas'
-import { failNextFor, republish, stopFailing, takeOffAir } from './test/server'
+import { resetDecodeCache } from './teletext/decode'
+import {
+  addThreeColourCell,
+  addUnknownCell,
+  breakFrameDecoding,
+  heldFrames,
+  holdFrameDecoding,
+  releaseFrameDecoding,
+  releaseNewestFrame,
+} from './test/canvas'
+import { failNextFor, reframe, republish, stopFailing, takeOffAir } from './test/server'
 
 /** The same clock format the freshness bar renders. */
 const shownAs = (iso: string) =>
@@ -69,6 +78,57 @@ describe('läsa en sida', () => {
     const gif = await screen.findByRole('img')
     expect(gif).toHaveAttribute('src', expect.stringContaining('data:image/gif;base64,'))
     expect(textFrames()).toHaveLength(0)
+  })
+
+  // R10
+  it('faller tillbaka på bilden när en cell har tre färger', async () => {
+    addThreeColourCell()
+    openOn('105')
+    await currentPage('105')
+
+    // One cell is enough: the model only holds if every cell has two colours,
+    // so the whole frame is left to the image.
+    expect(await screen.findByRole('img')).toHaveAttribute('alt', expect.stringContaining('SVT'))
+    expect(textFrames()).toHaveLength(0)
+  })
+
+  // R6
+  it('klipper ut rutan ur bilden för en cell den inte känner igen', async () => {
+    addUnknownCell()
+    openOn('105')
+    await drawnFrames(1)
+
+    // The rest of the page is still text; only the one cell falls back.
+    const slices = [...document.querySelectorAll('.text-frame__slice')]
+    expect(slices).toHaveLength(1)
+    expect((slices[0] as HTMLElement).style.backgroundImage).toContain('data:image/gif;base64,')
+  })
+
+  it('ritar inte en överspelad delsida under den nya rutan', async () => {
+    const { unmount } = openOn('100')
+    await drawnFrames(1)
+    unmount()
+
+    // SVT has rolled the page over: same sub-page, a new frame.
+    reframe('100', '377')
+    // A new session, so the cached frame is decoded again rather than served
+    // from the decode cache.
+    resetDecodeCache()
+    holdFrameDecoding()
+    openOn('100')
+
+    // The cached frame decodes, and the refetched one right after it.
+    await waitFor(() => expect(heldFrames()).toBe(2))
+
+    // The new frame answers first; the cached one it replaced answers late.
+    releaseNewestFrame()
+    await drawnFrames(1)
+    expect(frames()[0]).toHaveTextContent('377 SVT Text')
+
+    releaseFrameDecoding()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(frames()[0]).toHaveTextContent('377 SVT Text')
+    expect(frames()[0]).not.toHaveTextContent('Angrep elever')
   })
 
   // AE5
@@ -218,12 +278,9 @@ describe('genvägarna under bilden', () => {
 
     await currentPage('377')
     expect(window.location.hash).toBe('#377')
-    // The 377 fixture was fetched, not just the hash rewritten: the frame's
-    // label is its altText, which opens with the page number, so 100's frame
-    // would not satisfy this.
-    await waitFor(() =>
-      expect(frames()[0]).toHaveAttribute('aria-label', expect.stringContaining('377')),
-    )
+    // The 377 fixture was fetched, not just the hash rewritten: the decoded
+    // frame prints its own page number, so 100's frame would not satisfy this.
+    await waitFor(() => expect(frames()[0]).toHaveTextContent('377 SVT Text'))
   })
 
   it('tar bakåtgesten tillbaka från en genväg', async () => {

@@ -122,6 +122,5 @@ describe('resolvePage', () => {
 
     const { runs } = runsOf(cells, 3)
     expect(runs[1]).toMatchObject({ kind: 'unknown', col: 1, width: 1, fg: WHITE, bg: BLACK })
-    expect(runs[1]).toHaveProperty('cells', [cells[3 * GRID_COLS + 1]])
   })
 })

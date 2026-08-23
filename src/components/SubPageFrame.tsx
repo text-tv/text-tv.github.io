@@ -22,6 +22,8 @@ type Decoded =
  * The box is held empty while the decode runs rather than showing the GIF: the
  * blurry frame flashing on every page load is what this rendering replaces,
  * and drawing it here would make the R10 fallback look like a slow decode.
+ * Only a frame that has never resolved shows that empty box - a revalidation
+ * keeps the rows it already has until the new ones are ready.
  */
 export function SubPageFrame({ subPage, onNavigate }: Props) {
   const hotspots = useMemo(() => parseImageMap(subPage.imageMap), [subPage.imageMap])
@@ -29,7 +31,7 @@ export function SubPageFrame({ subPage, onNavigate }: Props) {
 
   useEffect(() => {
     let current = true
-    setDecoded({ status: 'pending' })
+    setDecoded((previous) => (previous.status === 'resolved' ? previous : { status: 'pending' }))
 
     void decodeFrame(subPage.gifDataUrl).then((cells) => {
       // A superseded sub-page's grid must never paint under the new frame.
@@ -44,7 +46,14 @@ export function SubPageFrame({ subPage, onNavigate }: Props) {
   }, [subPage.gifDataUrl])
 
   return (
-    <div className="frame" role="group" aria-label={subPage.altText}>
+    // The label names the group only while the <img> is all there is; once the
+    // page is drawn as text the text itself is the content, and labelling the
+    // group would have it read out and then read again.
+    <div
+      className="frame"
+      role="group"
+      aria-label={decoded.status === 'failed' ? subPage.altText : undefined}
+    >
       {decoded.status === 'resolved' && (
         <TextFrame rows={decoded.rows} gifDataUrl={subPage.gifDataUrl} />
       )}

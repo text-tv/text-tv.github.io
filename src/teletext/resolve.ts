@@ -1,5 +1,6 @@
 import { GLYPHS } from './glyphs.generated'
-import { CELL_HEIGHT, GRID_COLS, GRID_ROWS, doubleHeightKey, maskKey, type Cell } from './types'
+import { doubleHeightKey, isStretched, maskKey } from './mask.js'
+import { GRID_COLS, GRID_ROWS, type Cell } from './types'
 
 /**
  * One stretch of a display row that renders as a single element.
@@ -26,11 +27,9 @@ export interface MosaicRun extends RunBase {
   bits: number
 }
 
-/** A mask the table has never seen; the cells travel along for R6's per-cell fallback. */
+/** A mask the table has never seen; U4 cuts its box out of the GIF instead (R6). */
 export interface UnknownRun extends RunBase {
   kind: 'unknown'
-  /** The grid cells this run covers: one, or a double-height row's two halves. */
-  cells: Cell[]
 }
 
 export type Run = TextRun | MosaicRun | UnknownRun
@@ -45,19 +44,12 @@ export interface DisplayRow {
   runs: Run[]
 }
 
-/** A double-height glyph is drawn at 2x, so every scanline is duplicated. */
-const isStretched = (mask: Uint16Array): boolean => {
-  for (let y = 0; y < CELL_HEIGHT; y += 2) if (mask[y] !== mask[y + 1]) return false
-  return true
-}
-
 /**
  * Whether a grid row could be half of a double-height line.
  *
  * The two halves do not share an occupancy pattern — a stretched glyph sits at
  * a vertical offset, so ascenders land in one row and descenders in the other
- * — hence the test is on the scanlines, not on which cells are filled. This
- * mirrors `scripts/glyphs.mjs`; the two must agree or the keys miss.
+ * — hence the test is on the scanlines, not on which cells are filled.
  */
 const isStretchedRow = (cells: Cell[], row: number): boolean => {
   let filled = false
@@ -140,14 +132,7 @@ const resolveRow = (cells: Cell[], row: number, doubleHeight: boolean): Run[] =>
     const { fg, bg } = source
 
     if (glyph === undefined) {
-      builder.own({
-        kind: 'unknown',
-        col,
-        width: 1,
-        fg,
-        bg,
-        cells: bottom === null ? [top] : [top, bottom],
-      })
+      builder.own({ kind: 'unknown', col, width: 1, fg, bg })
     } else if (glyph.kind === 'mosaic') {
       builder.own({ kind: 'mosaic', col, width: 1, fg, bg, bits: glyph.bits })
     } else {
