@@ -153,15 +153,15 @@ describe('genvägarna under bilden', () => {
     await currentPage('100')
 
     expect(shortcuts().map((button) => button.textContent)).toEqual([
-      '100NYHETER',
-      '300SPORT',
-      '330RESULTATBÖRSEN',
-      '377MÅLSERVICE',
-      '400VÄDER',
-      '500BLANDAT',
-      '600PÅ TV',
-      '700INNEHÅLL',
-      '800UR',
+      '100 NYHETER',
+      '300 SPORT',
+      '330 RESULTATBÖRSEN',
+      '377 MÅLSERVICE',
+      '400 VÄDER',
+      '500 BLANDAT',
+      '600 PÅ TV',
+      '700 INNEHÅLL',
+      '800 UR',
     ])
   })
 
@@ -173,8 +173,9 @@ describe('genvägarna under bilden', () => {
 
     await currentPage('377')
     expect(window.location.hash).toBe('#377')
-    // The fixture for 377 was fetched, not just the hash rewritten.
-    await waitFor(() => expect(frames()).toHaveLength(1))
+    // The 377 fixture was fetched, not just the hash rewritten: altText opens
+    // with the page number, so 100's frame would not satisfy this.
+    await waitFor(() => expect(frames()[0]).toHaveAttribute('alt', expect.stringContaining('377')))
   })
 
   it('tar bakåtgesten tillbaka från en genväg', async () => {
