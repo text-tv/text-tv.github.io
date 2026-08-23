@@ -151,7 +151,14 @@ body {
   overflow: hidden;
   background: #000;
   font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-stretch: 150%;
+  /*
+   * Type is set larger than the cell and narrowed by the same factor, so it
+   * grows taller without growing wider: the wdth axis takes back on the width
+   * exactly what the size adds. The advance therefore still lands on 13px and
+   * the columns do not move - only the letters get their height back.
+   */
+  --type-scale: 1.15;
+  font-stretch: calc(150% / var(--type-scale));
   --cell-w: 2.5cqw;
   --cell-h: calc(var(--cell-w) * 16 / 13);
   /*
@@ -171,7 +178,7 @@ body {
   width: 100%;
   top: calc(var(--row) * var(--cell-h));
   height: var(--cell-h);
-  font-size: calc(var(--cell-w) / var(--advance));
+  font-size: calc(var(--cell-w) / var(--advance) * var(--type-scale));
   line-height: var(--cell-h);
 }
 
