@@ -183,12 +183,24 @@ body {
   --advance: 0.75;
 }
 
+/*
+ * Rows and runs overlap their neighbour by half a pixel.
+ *
+ * A cell is a fraction of the container's width, so no box edge lands on a
+ * whole device pixel: where one box's bottom rounds down and the next one's top
+ * rounds up, a crack opens and the frame's black background shows through a
+ * block of solid colour. The bleed covers it. Only the size grows - the origin
+ * of every box is untouched, so the grid does not move - and rows are drawn top
+ * to bottom and runs left to right, so the neighbour that the bleed reaches
+ * into is always painted after it and hides the overlap. Beware of giving runs
+ * a stacking order: that is what makes this invisible.
+ */
 .text-frame__row {
   position: absolute;
   left: 0;
   width: 100%;
   top: calc(var(--row) * var(--cell-h));
-  height: var(--cell-h);
+  height: calc(var(--cell-h) + 0.5px);
   font-size: calc(var(--cell-w) / var(--advance) * var(--type-scale));
   line-height: var(--cell-h);
 }
@@ -211,7 +223,7 @@ body {
   top: 0;
   height: 100%;
   left: calc(var(--col) * var(--cell-w));
-  width: calc(var(--width) * var(--cell-w));
+  width: calc(var(--width) * var(--cell-w) + 0.5px);
 }
 
 /*
@@ -257,7 +269,7 @@ body {
  * instead, which is the pair the double-height cell was read from.
  */
 .text-frame__row--double .text-frame__slice {
-  height: calc(var(--cell-h) * 2);
+  height: calc(var(--cell-h) * 2 + 0.5px);
   transform: scaleY(0.5);
   transform-origin: top left;
 }
