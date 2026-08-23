@@ -432,3 +432,57 @@ describe('var appen börjar', () => {
     await waitFor(() => expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument())
   })
 })
+
+describe('det synliga området', () => {
+  /**
+   * happy-dom ships no VisualViewport, so the hook gets a stand-in whose
+   * height the test can move the way an opening keyboard does.
+   */
+  const useViewportStub = (height: number) => {
+    const stub = Object.assign(new EventTarget(), { width: 390, height, offsetTop: 0 })
+    Object.defineProperty(window, 'visualViewport', { value: stub, configurable: true })
+    return stub
+  }
+
+  const heightProperty = () => document.documentElement.style.getPropertyValue('--viewport-height')
+
+  afterEach(() => {
+    Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
+  })
+
+  it('skriver ut det synliga områdets höjd', async () => {
+    useViewportStub(300)
+    openOn('100')
+
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+  })
+
+  it('följer med när tangentbordet ändrar höjden', async () => {
+    const viewport = useViewportStub(300)
+    openOn('100')
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    viewport.height = 700
+    viewport.dispatchEvent(new Event('resize'))
+
+    await waitFor(() => expect(heightProperty()).toBe('700px'))
+  })
+
+  it('lämnar inga värden kvar när appen stängs', async () => {
+    useViewportStub(300)
+    const { unmount } = openOn('100')
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    unmount()
+
+    expect(heightProperty()).toBe('')
+    expect(document.documentElement.style.getPropertyValue('--viewport-offset')).toBe('')
+  })
+
+  it('fungerar i en webbläsare utan visualViewport', async () => {
+    openOn('100')
+
+    await currentPage('100')
+    expect(heightProperty()).toBe('')
+  })
+})
