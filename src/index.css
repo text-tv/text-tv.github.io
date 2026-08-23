@@ -114,9 +114,17 @@ body {
 
 /* Teletext frames */
 
+/*
+ * SVT leaves column 0 of a row blank but runs the full-width bars flush to
+ * column 39, so a frame drawn in a centred box has its ink sitting one column
+ * right of centre - which is what reads as a missing right margin. The frame
+ * gives that column back on the right by drawing 39 columns wide instead of
+ * 40. Taking it off the width rather than shifting the box keeps a page that
+ * does print in column 0 off the left edge.
+ */
 .frame {
   position: relative;
-  width: 100%;
+  width: 97.5%;
   aspect-ratio: 520 / 400;
 }
 
