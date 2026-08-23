@@ -37,7 +37,9 @@ export function QuickLinks({ current, onNavigate }: Props) {
           aria-current={pageNumber === current ? 'page' : undefined}
           onClick={() => onNavigate(pageNumber)}
         >
-          <span className="links__num">{pageNumber}</span>
+          {/* The space is real text: the flex gap gives no word break to a
+              screen reader, and JSX drops the newline between two elements. */}
+          <span className="links__num">{pageNumber}</span>{' '}
           <span className="links__name">{name}</span>
         </button>
       ))}
