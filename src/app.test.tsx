@@ -432,3 +432,82 @@ describe('var appen börjar', () => {
     await waitFor(() => expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument())
   })
 })
+
+describe('det synliga området', () => {
+  /**
+   * happy-dom ships no VisualViewport, so the hook gets a stand-in whose
+   * height the test can move the way an opening keyboard does.
+   */
+  const useViewportStub = (height: number) => {
+    const stub = Object.assign(new EventTarget(), { width: 390, height, offsetTop: 0 })
+    Object.defineProperty(window, 'visualViewport', { value: stub, configurable: true })
+    return stub
+  }
+
+  const heightProperty = () => document.documentElement.style.getPropertyValue('--viewport-height')
+
+  afterEach(() => {
+    Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
+  })
+
+  it('skriver ut det synliga områdets höjd', async () => {
+    useViewportStub(300)
+    openOn('100')
+
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+  })
+
+  it('följer med när tangentbordet ändrar höjden', async () => {
+    const viewport = useViewportStub(300)
+    openOn('100')
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    viewport.height = 700
+    viewport.dispatchEvent(new Event('resize'))
+
+    await waitFor(() => expect(heightProperty()).toBe('700px'))
+  })
+
+  it('lämnar inga värden kvar när appen stängs', async () => {
+    useViewportStub(300)
+    const { unmount } = openOn('100')
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    unmount()
+
+    expect(heightProperty()).toBe('')
+    expect(document.documentElement.style.getPropertyValue('--viewport-offset')).toBe('')
+  })
+
+  // AE2. happy-dom lays nothing out, so this pins the wiring: the shell follows
+  // the shrunken viewport and three digits still navigate while it is shrunk.
+  it('går till sidan man skriver medan tangentbordet är uppe', async () => {
+    const viewport = useViewportStub(800)
+    openOn('377')
+    await currentPage('377')
+    const input = screen.getByLabelText('Gå till sida')
+
+    // The keyboard opens over the lower half.
+    await userEvent.click(input)
+    viewport.height = 300
+    viewport.dispatchEvent(new Event('resize'))
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    await userEvent.type(input, '100')
+
+    await currentPage('100')
+    expect(input).toHaveValue('')
+
+    // The third digit blurs the input; the keyboard goes away with it.
+    viewport.height = 800
+    viewport.dispatchEvent(new Event('resize'))
+    await waitFor(() => expect(heightProperty()).toBe('800px'))
+  })
+
+  it('fungerar i en webbläsare utan visualViewport', async () => {
+    openOn('100')
+
+    await currentPage('100')
+    expect(heightProperty()).toBe('')
+  })
+})
