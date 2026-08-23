@@ -97,15 +97,13 @@ body {
  * The only scroll container in the app. min-height: 0 keeps the flex item from
  * growing the shell instead of scrolling itself.
  *
- * The gutter is here rather than on .pages so the messages get it too. It is
- * small on purpose: every pixel comes off a width-constrained frame and takes
- * the type down with it.
+ * No gutter: a frame is width-constrained, so every pixel taken off the sides
+ * comes straight out of the type. The messages carry their own padding.
  */
 .content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-inline: 8px;
 }
 
 .pages {
@@ -119,16 +117,15 @@ body {
 /* Teletext frames */
 
 /*
- * SVT leaves column 0 of a row blank but runs the full-width bars flush to
- * column 39, so a frame drawn in a centred box has its ink sitting one column
- * right of centre - which is what reads as a missing right margin. The frame
- * gives that column back on the right by drawing 39 columns wide instead of
- * 40. Taking it off the width rather than shifting the box keeps a page that
- * does print in column 0 off the left edge.
+ * Full bleed: the frame takes the whole column so the type is drawn as large
+ * as the screen allows. SVT leaves column 0 of a row blank but runs the
+ * full-width bars flush to column 39, so the ink sits one cell right of
+ * centre. That cell is the page's own margin, not the app's, and giving it
+ * back on the right would cost every page a column of size.
  */
 .frame {
   position: relative;
-  width: 97.5%;
+  width: 100%;
   aspect-ratio: 520 / 400;
 }
 
@@ -377,6 +374,8 @@ body {
 
 .message__text {
   margin: 0 0 8px;
+  /* Holds the standalone loading line off the edge now the content has no gutter. */
+  padding-inline: 8px;
   font-size: 20px;
 }
 
