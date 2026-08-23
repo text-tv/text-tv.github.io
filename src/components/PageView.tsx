@@ -1,4 +1,5 @@
 import type { PageNumber, PageResult } from '../api.types'
+import { QuickLinks } from './QuickLinks'
 import { SubPageFrame } from './SubPageFrame'
 
 interface Props {
@@ -20,6 +21,7 @@ export function PageView({ page, onNavigate }: Props) {
           onNavigate={onNavigate}
         />
       ))}
+      <QuickLinks current={page.pageNumber} onNavigate={onNavigate} />
     </div>
   )
 }

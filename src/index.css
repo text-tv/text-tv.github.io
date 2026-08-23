@@ -147,6 +147,76 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * Shortcuts to the nine sections SVT links itself. Drawn in the frames' own
+ * palette rather than the app's, so they read as a continuation of the page
+ * instead of chrome bolted underneath it. The 2px sits on top of .pages' 12px
+ * flex gap to make the 14px the design asks for.
+ */
+.links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+  row-gap: 2px;
+  margin-top: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* font: inherit or the UA's own button font wins and the monospace is lost. */
+.links__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.links__num {
+  font-size: 15px;
+  color: #ffff00;
+  font-variant-numeric: tabular-nums;
+}
+
+.links__name {
+  font-size: 15px;
+  color: #00ffff;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* You are here: drop out of the palette rather than add a marker. */
+.links__item[aria-current='page'] .links__num,
+.links__item[aria-current='page'] .links__name {
+  color: #fff;
+}
+
+@media (hover: hover) {
+  .links__item:hover .links__name {
+    color: #7fffff;
+  }
+}
+
+@media (min-width: 700px) {
+  .links {
+    column-gap: 24px;
+    margin-top: 4px;
+  }
+
+  .links__item {
+    gap: 10px;
+  }
+
+  .links__num,
+  .links__name {
+    font-size: 17px;
+  }
+}
+
 /* Messages */
 
 .message {
