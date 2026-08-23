@@ -27,6 +27,12 @@
    * narrower than this, so the cap never binds there.
    */
   --frame-max: 560px;
+  /*
+   * Extra height per teletext row. The cell is 13x16 by broadcast, which packs
+   * the lines tighter than a screen wants them; the rows are drawn on a taller
+   * cell and the frame grows to match, so the grid stays whole.
+   */
+  --leading: 1.08;
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
@@ -126,6 +132,11 @@ body {
 .frame {
   position: relative;
   width: 100%;
+  aspect-ratio: 520 / calc(400 * var(--leading));
+}
+
+/* The GIF is a picture of the broadcast cell, so it keeps the broadcast box. */
+.frame:has(.frame__gif) {
   aspect-ratio: 520 / 400;
 }
 
@@ -160,7 +171,7 @@ body {
   --type-scale: 1.15;
   font-stretch: calc(150% / var(--type-scale));
   --cell-w: 2.5cqw;
-  --cell-h: calc(var(--cell-w) * 16 / 13);
+  --cell-h: calc(var(--cell-w) * 16 / 13 * var(--leading));
   /*
    * One glyph has to occupy exactly one 13px column, and a face's advance is a
    * property of its design: Inconsolata at 150% width sets 0.75em, so a
