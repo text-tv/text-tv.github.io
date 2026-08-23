@@ -8,7 +8,14 @@
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
+  --viewport-height: 100vh;
   color-scheme: dark only;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --viewport-height: 100dvh;
+  }
 }
 
 * {
@@ -30,17 +37,16 @@ body {
 /*
  * The shell is pinned to the visual viewport, not the document: the keyboard
  * shrinks it instead of scrolling the page away. --viewport-height is written
- * by useVisualViewport; the 100vh line catches engines with neither dvh nor
- * visualViewport, where an auto height would collapse in an unscrollable
- * document. --viewport-offset follows the visual viewport when it is shifted.
+ * by useVisualViewport and falls back to the units the engine has - a dvh
+ * fallback inside var() would compute to auto where dvh is unknown, collapsing
+ * the shell. --viewport-offset follows the viewport when it is shifted.
  */
 .app {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 100vh;
-  height: var(--viewport-height, 100dvh);
+  height: var(--viewport-height);
   transform: translateY(var(--viewport-offset, 0px));
   display: flex;
   flex-direction: column;
