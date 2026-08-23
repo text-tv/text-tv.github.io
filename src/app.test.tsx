@@ -479,6 +479,31 @@ describe('det synliga området', () => {
     expect(document.documentElement.style.getPropertyValue('--viewport-offset')).toBe('')
   })
 
+  // AE2. happy-dom lays nothing out, so this pins the wiring: the shell follows
+  // the shrunken viewport and three digits still navigate while it is shrunk.
+  it('går till sidan man skriver medan tangentbordet är uppe', async () => {
+    const viewport = useViewportStub(800)
+    openOn('377')
+    await currentPage('377')
+    const input = screen.getByLabelText('Gå till sida')
+
+    // The keyboard opens over the lower half.
+    await userEvent.click(input)
+    viewport.height = 300
+    viewport.dispatchEvent(new Event('resize'))
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    await userEvent.type(input, '100')
+
+    await currentPage('100')
+    expect(input).toHaveValue('')
+
+    // The third digit blurs the input; the keyboard goes away with it.
+    viewport.height = 800
+    viewport.dispatchEvent(new Event('resize'))
+    await waitFor(() => expect(heightProperty()).toBe('800px'))
+  })
+
   it('fungerar i en webbläsare utan visualViewport', async () => {
     openOn('100')
 
