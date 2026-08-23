@@ -51,9 +51,12 @@ const MOSAIC_REGIONS = [
  * never produce, or collide with a real one and vote for the wrong character.
  */
 function toMasks({ pal, idx }) {
+  // Snapped to off-or-full exactly as src/teletext/decode.ts snaps the canvas,
+  // so two palette entries a step apart cannot split a cell here that the
+  // runtime reads as one colour - the masks have to agree or the keys miss.
   const colour = (x, y) => {
     const [r, g, b] = pal[idx[y * FRAME_W + x]]
-    return (r << 16) | (g << 8) | b
+    return ((r < 128 ? 0 : 255) << 16) | ((g < 128 ? 0 : 255) << 8) | (b < 128 ? 0 : 255)
   }
   const masks = []
   for (let row = 0; row < ROWS; row += 1) {
