@@ -32,7 +32,7 @@
    * the lines tighter than a screen wants them; the rows are drawn on a taller
    * cell and the frame grows to match, so the grid stays whole.
    */
-  --leading: 1.18;
+  --leading: 1.26;
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
@@ -337,7 +337,7 @@ body {
    * Under the 44px a tap target wants, which is the trade the block is here
    * to make: the height it gives up goes to the page above it.
    */
-  min-height: 36px;
+  min-height: 30px;
   padding: 0;
   border: 0;
   background: transparent;
