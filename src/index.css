@@ -1,4 +1,15 @@
 /*
+ * The teletext face, expected at public/teletext.woff2. The file is not in the
+ * repo yet - it is supplied separately - so the stack also names monospace and
+ * the app works today. The url is relative so it survives a project-path base.
+ */
+@font-face {
+  font-family: 'Teletext';
+  src: url('../teletext.woff2') format('woff2');
+  font-display: swap;
+}
+
+/*
  * Black everywhere. The frame's own background is black, so any other colour
  * would draw a visible seam around the picture, and a light shell would put a
  * black rectangle in a white field. The system theme is deliberately ignored.
@@ -108,6 +119,75 @@ body {
   display: block;
   width: 100%;
   height: 100%;
+  image-rendering: pixelated;
+}
+
+/*
+ * The decoded page, drawn as text on the GIF's own geometry.
+ *
+ * The frame is the query container, so one cell is a fixed fraction of its
+ * width (13/520) and everything - position, size and type - is derived from
+ * that. The grid therefore fills exactly the box the GIF used to, at any
+ * column width, without measuring anything in JavaScript.
+ */
+.text-frame {
+  position: absolute;
+  inset: 0;
+  container-type: inline-size;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Teletext', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cell-w: 2.5cqw;
+  --cell-h: calc(var(--cell-w) * 16 / 13);
+}
+
+/* Type is set at the cell's height: the face is drawn on a 13x16 cell. */
+.text-frame__row {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  top: calc(var(--row) * var(--cell-h));
+  height: var(--cell-h);
+  font-size: var(--cell-h);
+  line-height: var(--cell-h);
+}
+
+/* A double-height row is drawn twice as tall and covers the row beneath it. */
+.text-frame__row--double {
+  height: calc(var(--cell-h) * 2);
+  font-size: calc(var(--cell-h) * 2);
+  line-height: calc(var(--cell-h) * 2);
+}
+
+.text-frame__run,
+.text-frame__mosaic,
+.text-frame__slice {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  left: calc(var(--col) * var(--cell-w));
+  width: calc(var(--width) * var(--cell-w));
+}
+
+/* pre keeps the runs of spaces that hold the page's columns apart. */
+.text-frame__run {
+  white-space: pre;
+}
+
+/*
+ * Block graphics as six boxes rather than a character, so they never depend on
+ * the face having sextant glyphs. The bands are the ones SVT draws: x splits at
+ * 6 of 13, y at 5 and 11 of 16, so neighbouring cells tile without a seam.
+ */
+.text-frame__mosaic {
+  display: grid;
+}
+
+/* R6: a glyph the table does not know falls back to its own slice of the GIF. */
+.text-frame__slice {
+  background-repeat: no-repeat;
+  background-size: calc(var(--cols) * var(--cell-w)) calc(var(--rows) * var(--cell-h));
+  background-position: calc(var(--col) * var(--cell-w) * -1) calc(var(--row) * var(--cell-h) * -1);
   image-rendering: pixelated;
 }
 
