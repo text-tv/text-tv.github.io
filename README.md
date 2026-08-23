@@ -23,7 +23,6 @@ Node 20 or later.
 | `npm run build` | Typecheck and produce a production build in `dist/`. |
 | `npm run preview` | Serve the production build. |
 | `npm run icons` | Regenerate the app icons in `public/`. |
-| `npm run deploy` | Build and deploy to Cloudflare Workers. |
 
 ## Development against the mock
 
@@ -99,18 +98,24 @@ they are covered through the app-level seam.
 
 ## Deployment
 
-Cloudflare Workers static assets, configured in `wrangler.jsonc`:
+GitHub Pages, from `.github/workflows/deploy.yml`. Every push to `main` runs
+the tests, builds, and publishes `dist/`. There is no deploy command to run by
+hand — enable it once under **Settings -> Pages -> Source: GitHub Actions**.
 
-```bash
-npm run deploy
-```
+The build uses a relative `base`, so the same output works at a project path
+(`https://<user>.github.io/text-tv/`) or at a domain root, with no rebuild. Add
+a custom domain by setting it in the Pages settings and committing the `CNAME`
+file it creates to `public/`.
 
-The custom domain is attached in the Cloudflare dashboard. There is no
-server-side code — the Worker only serves `dist/`.
+Two things Pages needs and already has: `public/.nojekyll`, so it serves the
+build verbatim instead of running Jekyll over it, and hash routing (`#100`), so
+no path but `/` is ever requested and the missing SPA rewrite never matters.
 
-If SVT ever stops sending the CORS header, the app breaks until a small proxy
-Worker is deployed. This is a known single point of failure, accepted for the
-simplicity of having no service between the reader and SVT.
+Pages serves static files only. There is no server-side code, and none is
+needed — the browser talks to SVT directly. If SVT ever stops sending the CORS
+header, the app breaks until a small proxy is deployed somewhere. This is a
+known single point of failure, accepted for the simplicity of having nothing
+between the reader and SVT.
 
 ## Attribution
 

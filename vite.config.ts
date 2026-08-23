@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // Relative, so the build runs unchanged at a GitHub Pages project path
+  // (/text-tv/) or at a domain root. Hash routing means no path ever needs
+  // resolving server-side.
+  base: './',
   plugins: [
     react(),
     VitePWA({
@@ -13,8 +17,8 @@ export default defineConfig({
         short_name: 'Text-TV',
         description: 'SVT Text med länkar som fungerar på pekskärm.',
         lang: 'sv',
-        start_url: '/',
-        scope: '/',
+        start_url: './',
+        scope: './',
         display: 'standalone',
         orientation: 'any',
         // Black everywhere, so there is no white flash on launch and no

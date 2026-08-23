@@ -3,7 +3,6 @@ dist
 dev-dist
 .DS_Store
 *.local
-.wrangler
 
 # TypeScript build info
 *.tsbuildinfo

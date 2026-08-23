@@ -191,9 +191,9 @@ background polling, an offline archive with its own eviction policy, search,
 accounts or analytics, an in-app install prompt flow, any language other than
 Swedish, and auto-cycling sub-pages.
 
-Cloudflare Workers deployment config is written (`wrangler.jsonc` plus a
-documented deploy command) but not executed: there is no remote and no
-credentials in this environment.
+GitHub Pages deployment is configured (a build-and-publish workflow) but not
+executed: the repo has no remote in this environment, so nothing has been
+pushed and the workflow has never run.
 
 ### Acceptance Examples
 
@@ -240,7 +240,7 @@ credentials in this environment.
   Governs R1, R2.
 - KTD2. **No backend and no proxy: the browser fetches
   `https://www.svt.se/text-tv/api/{page}` directly**
-  (session-settled: user-approved — chosen over an edge proxy Worker: a proxy
+  (session-settled: user-approved — chosen over an edge proxy: a proxy
   adds a second service to the critical path and a second staleness layer).
   The API sends `access-control-allow-origin: *`. Accepted risk: if that header
   is removed the app breaks until a proxy is deployed. Governs R43.
@@ -354,7 +354,7 @@ the PWA shell and deploy config, which need the app to exist first.
 ### Risks & Dependencies
 
 - **CORS removal at SVT** breaks the app with no server-side fallback. Named
-  and accepted in KTD2; the mitigation is a proxy Worker, held in reserve.
+  and accepted in KTD2; the mitigation is a small proxy, held in reserve.
 - **Nearest-centre hit resolution on a dense page** may not pick what the
   reader meant. It cannot be settled by automated tests; it is on the manual
   device checklist.
@@ -578,26 +578,39 @@ worker, and all four icons; `npm run preview` serves an installable app.
 
 ### U9. Deploy config and documentation
 
-**Goal:** Deploying is one command, and the repo documents how to run, test and
+**Goal:** Deploying is a push, and the repo documents how to run, test and
 mock.
 
 **Requirements:** R42, R44.
 
-**Files:** `wrangler.jsonc`, `CLAUDE.md`, `README.md`.
+**Files:** `.github/workflows/deploy.yml`, `public/.nojekyll`,
+`vite.config.ts`, `CLAUDE.md`, `README.md`.
 
-**Approach:** `wrangler.jsonc` configures Cloudflare Workers static assets
-(`assets.directory: "./dist"`, SPA-style `not_found_handling`), with
-`npm run deploy` as `npm run build && wrangler deploy`. It is written and
-committed but not run — there are no credentials here, and the custom domain is
-attached in the Cloudflare dashboard. `README.md` covers install, dev against
-the mock, test, build and deploy, plus the manual device checklist the PRD says
-automated tests cannot cover. `CLAUDE.md`'s placeholder Commands section is
-filled in.
+**Approach:** GitHub Pages, published by Actions. The workflow runs on push to
+`main` — `npm ci`, `npm test`, `npm run build` — and uploads `dist/` via
+`upload-pages-artifact` / `deploy-pages`, so there is no deploy command and no
+credential to hold: the job authenticates with the repo's own OIDC token. Pages
+must be switched to the Actions source once, in the repo settings.
+
+Pages serves from a project path (`/<repo>/`) unless a custom domain is
+attached, and that is not knowable from here. Rather than pin one, the build
+sets `base: './'` and the manifest's `start_url`/`scope` to `'./'`, so the same
+output boots at either mount point: relative asset URLs resolve against the
+page, and the service worker's scope follows the directory it is served from.
+`public/.nojekyll` stops Pages running Jekyll over the build. Hash routing
+means no path but the mount root is ever requested, so Pages' lack of an SPA
+rewrite costs nothing.
+
+`README.md` covers install, dev against the mock, test, build and deploy, plus
+the manual device checklist the PRD says automated tests cannot cover.
+`CLAUDE.md`'s placeholder Commands section is filled in.
 
 **Test scenarios:** None.
 
-**Verification:** `npx wrangler deploy --dry-run` succeeds offline, or the
-config is validated by inspection if wrangler cannot run without auth.
+**Verification:** `dist/` is served over HTTP under both `/text-tv/` and `/`,
+and in each case the app boots with no failed request, the manifest's
+`start_url` and `scope` resolve to that mount point, and the service worker
+registers with a matching scope.
 
 ## Verification Contract
 

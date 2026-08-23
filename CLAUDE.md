@@ -32,7 +32,10 @@ installable, mobile-friendly UI.
 - `npm run build` — typecheck + production build
 - `npm run preview` — serve the production build
 - `npm run icons` — regenerate `public/*.png`
-- `npm run deploy` — build + `wrangler deploy`
+
+Deployment is GitHub Pages via `.github/workflows/deploy.yml` on push to `main`;
+there is no deploy command. The build sets a relative `base`, so it works at a
+project path or a domain root unchanged.
 
 Development runs against a local `json-server` mock rather than the live API.
 `fixtures/raw_*.json` are captured real responses and are the single source of
