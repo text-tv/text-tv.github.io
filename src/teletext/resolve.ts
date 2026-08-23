@@ -1,5 +1,5 @@
 import { GLYPHS } from './glyphs.generated'
-import { doubleHeightKey, isStretched, maskKey } from './mask.js'
+import { doubleHeightKey, isStretched, maskKey, unstretchedKey } from './mask.js'
 import { GRID_COLS, GRID_ROWS, type Cell } from './types'
 
 /**
@@ -126,9 +126,16 @@ const resolveRow = (cells: Cell[], row: number, doubleHeight: boolean): Run[] =>
     // Either half of a double-height cell may be blank, and a blank cell has no
     // foreground of its own, so the colours come from the half that is drawn.
     const source = top.mask !== null ? top : (bottom as Cell)
-    const key =
-      bottom === null ? maskKey(top.mask as Uint16Array) : doubleHeightKey(top.mask, bottom.mask)
-    const glyph = GLYPHS[key]
+    // A double-height cell is looked up twice: first as the pair it is, then as
+    // the normal-height character it is a stretched copy of. The second lookup
+    // is what spares the table a second entry per character - a character seen
+    // at either size is drawn at both, and only one that has never been
+    // captured at all falls through to its slice of the GIF.
+    const glyph =
+      bottom === null
+        ? GLYPHS[maskKey(top.mask as Uint16Array)]
+        : (GLYPHS[doubleHeightKey(top.mask, bottom.mask)] ??
+          GLYPHS[unstretchedKey(top.mask, bottom.mask)])
     const { fg, bg } = source
 
     if (glyph === undefined) {

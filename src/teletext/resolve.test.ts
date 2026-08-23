@@ -10,6 +10,9 @@ const A = [0, 0, 0, 0, 0, 1008, 2032, 1536, 2032, 2040, 1560, 2040, 2032, 0, 0, 
 const N = [0, 0, 0, 0, 0, 1020, 2044, 1548, 1548, 1548, 1548, 1548, 1548, 0, 0, 0]
 const A_TOP = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1008, 1008, 2032, 2032, 1536, 1536]
 const A_BOTTOM = [2032, 2032, 2040, 2040, 1560, 1560, 2040, 2040, 2032, 2032, 0, 0, 0, 0, 0, 0]
+/* 'x' is in the table at normal height only, so it exercises the second lookup. */
+const X_TOP = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1548, 1548, 1820, 1820, 952, 952]
+const X_BOTTOM = [496, 496, 496, 496, 952, 952, 1820, 1820, 1548, 1548, 0, 0, 0, 0, 0, 0]
 const MOSAIC = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 63, 63, 63, 63]
 const UNSEEN = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 
@@ -99,6 +102,16 @@ describe('resolvePage', () => {
     const row = runsOf(cells, 3)
     expect(row.doubleHeight).toBe(true)
     expect(row.runs[0]).toMatchObject({ kind: 'text', col: 0, width: 1, text: 'a' })
+  })
+
+  it('känner igen ett dubbelhöjdstecken som bara finns i normalhöjd i tabellen', () => {
+    const cells = grid()
+    put(cells, 3, 0, glyph(X_TOP))
+    put(cells, 4, 0, glyph(X_BOTTOM))
+
+    const row = runsOf(cells, 3)
+    expect(row.doubleHeight).toBe(true)
+    expect(row.runs[0]).toMatchObject({ kind: 'text', col: 0, width: 1, text: 'x' })
   })
 
   it('låter en mosaik bli en egen körning', () => {
