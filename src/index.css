@@ -289,10 +289,16 @@ body {
  * palette rather than the app's, so they read as a continuation of the page
  * instead of chrome bolted underneath it. The 2px sits on top of .pages' 12px
  * flex gap to make the 14px the design asks for.
+ *
+ * The columns take their own width rather than half the row each, so the block
+ * is centred on the page instead of being stretched across it with the slack
+ * left trailing after the shorter names. auto rather than max-content so the
+ * longest pair can still give way on a narrow screen.
  */
 .links {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, auto);
+  justify-content: center;
   column-gap: 16px;
   row-gap: 2px;
   margin-top: 2px;
