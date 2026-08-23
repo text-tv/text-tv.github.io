@@ -92,11 +92,16 @@ body {
 /*
  * The only scroll container in the app. min-height: 0 keeps the flex item from
  * growing the shell instead of scrolling itself.
+ *
+ * The gutter is here rather than on .pages so the messages get it too. It is
+ * small on purpose: every pixel comes off a width-constrained frame and takes
+ * the type down with it.
  */
 .content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding-inline: 8px;
 }
 
 .pages {
