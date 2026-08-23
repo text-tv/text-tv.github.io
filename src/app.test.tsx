@@ -142,6 +142,76 @@ describe('överlappande länkar', () => {
   })
 })
 
+describe('genvägarna under bilden', () => {
+  const shortcuts = () => within(screen.getByLabelText('Genvägar')).getAllByRole('button')
+
+  const shortcut = (name: string) =>
+    within(screen.getByLabelText('Genvägar')).getByRole('button', { name })
+
+  it('listar de nio sektionerna SVT själv länkar', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    expect(shortcuts().map((button) => button.textContent)).toEqual([
+      '100NYHETER',
+      '300SPORT',
+      '330RESULTATBÖRSEN',
+      '377MÅLSERVICE',
+      '400VÄDER',
+      '500BLANDAT',
+      '600PÅ TV',
+      '700INNEHÅLL',
+      '800UR',
+    ])
+  })
+
+  it('går till sidan när man trycker på en genväg', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    await userEvent.click(shortcut('377 MÅLSERVICE'))
+
+    await currentPage('377')
+    expect(window.location.hash).toBe('#377')
+    // The fixture for 377 was fetched, not just the hash rewritten.
+    await waitFor(() => expect(frames()).toHaveLength(1))
+  })
+
+  it('tar bakåtgesten tillbaka från en genväg', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(shortcut('377 MÅLSERVICE'))
+    await currentPage('377')
+
+    window.history.back()
+
+    await currentPage('100')
+  })
+
+  it('märker ut sidan man redan är på', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    expect(shortcut('100 NYHETER')).toHaveAttribute('aria-current', 'page')
+    expect(shortcut('300 SPORT')).not.toHaveAttribute('aria-current')
+  })
+
+  it('flyttar markeringen när man byter sida', async () => {
+    openOn('377')
+    await currentPage('377')
+
+    expect(shortcut('377 MÅLSERVICE')).toHaveAttribute('aria-current', 'page')
+    expect(shortcut('100 NYHETER')).not.toHaveAttribute('aria-current')
+  })
+
+  it('visas inte för en sida som inte sänds', async () => {
+    openOn('200')
+    await screen.findByText('Sidan ej i sändning')
+
+    expect(screen.queryByLabelText('Genvägar')).not.toBeInTheDocument()
+  })
+})
+
 describe('knapparna längst ned', () => {
   // AE3
   it('hoppar över sidnummer som inte sänds när man går framåt', async () => {
