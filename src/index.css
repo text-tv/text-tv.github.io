@@ -48,12 +48,21 @@
    * column narrower than the type can be read at, and one shorter than the
    * chrome would clamp to zero and blank the page. Reading a tall page by
    * scrolling is what those screens did before and is the better answer.
+   *
+   * The 900px ceiling is the other end of the same argument. A frame is 520px
+   * by broadcast, so past this the cells are simply magnified: a tall desktop
+   * window would otherwise draw the page at more than twice native size and
+   * leave the height it was given to a wall of enormous characters.
    */
   --frame-budget: calc(
     var(--viewport-height) - var(--freshness-height) - var(--rail-height) -
       var(--bar-height) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
   );
-  --frame-max: max(560px, calc((var(--frame-budget) - 2px) * 520 / (400 * var(--leading))));
+  --frame-max: clamp(
+    560px,
+    calc((var(--frame-budget) - 2px) * 520 / (400 * var(--leading))),
+    900px
+  );
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);

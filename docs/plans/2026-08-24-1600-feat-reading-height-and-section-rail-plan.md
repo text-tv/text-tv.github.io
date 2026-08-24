@@ -78,10 +78,10 @@ The design files in `misc/design/` are references written in HTML, not productio
 *Decision:* Do not scroll the current item into view when the page changes. *Provenance:* the handoff marks it "nice-to-have, not required". *Rejected:* `scrollLeft` arithmetic in a `useEffect`. *Reason:* it adds a ref, an effect and a test surface for an unrequired refinement; `scrollIntoView` is forbidden outright because it moves the whole shell. Recorded as a residual.
 
 **KTD5 — the old 560px cap becomes the floor, for the column and the bar alike.**
-*Decision:* `--frame-max` is `max(560px, calc((--frame-budget - 2px) * 520 / (400 * --leading)))`. `.pages` and `.bar__inner` both keep their plain `max-width: var(--frame-max)`.
+*Decision:* `--frame-max` is `clamp(560px, calc((--frame-budget - 2px) * 520 / (400 * --leading)), 900px)`. `.pages` and `.bar__inner` both keep their plain `max-width: var(--frame-max)`.
 *Provenance:* this plan's, revised after code review.
 *Rejected:* leaving `--frame-max` unfloored, and the earlier draft of this KTD, which floored only `.bar__inner` at 320px and let the column collapse.
-*Reason:* a height-derived cap collapses where a fixed one could not. A landscape phone leaves roughly 264px of budget, so an unfloored `--frame-max` lands near 229px — narrower than the type can be read at, and *narrower than the same phone got before this change*. Shorter still — a landscape phone with the keypad up — drives the budget negative, `max-width` clamps it to zero, and the page goes blank. Flooring at the old cap means the budget can only ever make the column wider than it used to be, so no screen regresses: R3 holds everywhere rather than just in portrait, R2 still grows the frame on an iPad, and where the floor binds the page scrolls, which is exactly what those screens did before. It also keeps the bar and the column identical at every size, so R2's optical alignment needs no exception. The 2px of slack keeps a fractional column width from rounding into a scrollbar on the one screen the budget was meant to fit exactly.
+*Reason:* a height-derived cap collapses where a fixed one could not. A landscape phone leaves roughly 264px of budget, so an unfloored `--frame-max` lands near 229px — narrower than the type can be read at, and *narrower than the same phone got before this change*. Shorter still — a landscape phone with the keypad up — drives the budget negative, `max-width` clamps it to zero, and the page goes blank. Flooring at the old cap means the budget can only ever make the column wider than it used to be, so no screen regresses: R3 holds everywhere rather than just in portrait, R2 still grows the frame on an iPad, and where the floor binds the page scrolls, which is exactly what those screens did before. It also keeps the bar and the column identical at every size, so R2's optical alignment needs no exception. The 2px of slack keeps a fractional column width from rounding into a scrollbar on the one screen the budget was meant to fit exactly. The 900px ceiling is the same argument at the other end: a frame is 520px by broadcast, so beyond that the cells only magnify, and a tall desktop window would otherwise draw the page at more than twice native size.
 
 ## High-Level Technical Design
 
@@ -135,7 +135,6 @@ CSS-only requirements (R1–R4, R6, R9) are not asserted in jsdom — it compute
 
 ## Residuals
 
-1. Desktop ceiling for `--frame-max` on a large monitor — left unbounded (KTD2), designer's call.
-2. Scroll the current rail item into view on page change — not implemented (KTD4).
-3. iOS keyboard frame jump — needs a device check. KTD5's floor removes it on a portrait phone (the budget stays above 560px with the keypad up, so the viewport's own width still binds and nothing moves); the check is about tablets and landscape.
-4. Rail names in title case rather than capitals — capitals kept, designer's call, one-line change.
+1. Scroll the current rail item into view on page change — not implemented (KTD4).
+2. iOS keyboard frame jump — needs a device check. KTD5's floor removes it on a portrait phone (the budget stays above 560px with the keypad up, so the viewport's own width still binds and nothing moves); the check is about tablets and landscape.
+3. Rail names in title case rather than capitals — capitals kept, designer's call, one-line change.
