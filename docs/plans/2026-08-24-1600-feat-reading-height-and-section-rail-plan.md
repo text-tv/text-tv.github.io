@@ -37,7 +37,7 @@ The design files in `misc/design/` are references written in HTML, not productio
 
 - **R1** — Teletext rows are drawn at leading 1.5, with columns, mosaics, GIF slices and hotspots landing exactly where they land today.
 - **R2** — On a viewport where the height binds, the frame grows past 560px to fill the height it is given, and the bottom bar's controls stay optically aligned with it wherever the bar has room for it.
-- **R2a** — The bottom bar's controls stay usable and uncrushed at every viewport, including a landscape phone and a portrait phone with the keypad open.
+- **R2a** — The reading column and the bar's controls stay usable at every viewport, including a landscape phone and a portrait phone with the keypad open, and are never narrower than they were before this change.
 - **R3** — On a portrait phone, where the width binds, the frame's width is unchanged.
 - **R4** — The frame and the shell never overflow the visual viewport: no page-level scrollbar appears because the chrome constants under-report the real chrome height.
 - **R5** — The nine section shortcuts are reachable from any page without scrolling the page content, and do not scroll away with the frames.
@@ -77,11 +77,11 @@ The design files in `misc/design/` are references written in HTML, not productio
 **KTD4 — No scroll-into-view on the rail.**
 *Decision:* Do not scroll the current item into view when the page changes. *Provenance:* the handoff marks it "nice-to-have, not required". *Rejected:* `scrollLeft` arithmetic in a `useEffect`. *Reason:* it adds a ref, an effect and a test surface for an unrequired refinement; `scrollIntoView` is forbidden outright because it moves the whole shell. Recorded as a residual.
 
-**KTD5 — `.bar__inner` gets a floor; `--frame-max` itself does not.**
-*Decision:* `.bar__inner` becomes `max-width: max(var(--frame-max), 320px)`. `--frame-max` stays unfloored.
-*Provenance:* this plan's, from review.
-*Rejected:* flooring `--frame-max` itself, so the bar and the frame stay identical at every size.
-*Reason:* a height-derived cap collapses where a fixed one could not. A landscape phone (844x390) leaves roughly 264px of budget, so `--frame-max` lands near 229px — and the bar's own controls need about 305px before the input gets any width (three 44px buttons, the page span, four 8px gaps, 24px padding, a 4.5em input). The same happens in portrait the moment the keypad opens. Flooring the token would push the frame past its budget and cost R4; flooring only the bar keeps the controls usable and gives up optical alignment exactly where there is no room for it. On a portrait phone the floor never binds — the budget there is ~718px, so `--frame-max` is ~622px and the viewport's own 390px still wins.
+**KTD5 — the old 560px cap becomes the floor, for the column and the bar alike.**
+*Decision:* `--frame-max` is `max(560px, calc((--frame-budget - 2px) * 520 / (400 * --leading)))`. `.pages` and `.bar__inner` both keep their plain `max-width: var(--frame-max)`.
+*Provenance:* this plan's, revised after code review.
+*Rejected:* leaving `--frame-max` unfloored, and the earlier draft of this KTD, which floored only `.bar__inner` at 320px and let the column collapse.
+*Reason:* a height-derived cap collapses where a fixed one could not. A landscape phone leaves roughly 264px of budget, so an unfloored `--frame-max` lands near 229px — narrower than the type can be read at, and *narrower than the same phone got before this change*. Shorter still — a landscape phone with the keypad up — drives the budget negative, `max-width` clamps it to zero, and the page goes blank. Flooring at the old cap means the budget can only ever make the column wider than it used to be, so no screen regresses: R3 holds everywhere rather than just in portrait, R2 still grows the frame on an iPad, and where the floor binds the page scrolls, which is exactly what those screens did before. It also keeps the bar and the column identical at every size, so R2's optical alignment needs no exception. The 2px of slack keeps a fractional column width from rounding into a scrollbar on the one screen the budget was meant to fit exactly.
 
 ## High-Level Technical Design
 
@@ -137,5 +137,5 @@ CSS-only requirements (R1–R4, R6, R9) are not asserted in jsdom — it compute
 
 1. Desktop ceiling for `--frame-max` on a large monitor — left unbounded (KTD2), designer's call.
 2. Scroll the current rail item into view on page change — not implemented (KTD4).
-3. iOS keyboard frame jump — needs a device check; freeze `--frame-max` on input focus if it is distracting. KTD5's floor already keeps the *bar* usable while the keypad is open, so the check is about the frame's motion alone.
+3. iOS keyboard frame jump — needs a device check. KTD5's floor removes it on a portrait phone (the budget stays above 560px with the keypad up, so the viewport's own width still binds and nothing moves); the check is about tablets and landscape.
 4. Rail names in title case rather than capitals — capitals kept, designer's call, one-line change.

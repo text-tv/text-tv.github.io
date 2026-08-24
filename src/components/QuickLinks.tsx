@@ -21,9 +21,8 @@ interface Props {
 /**
  * Shortcuts to the nine sections, sliding sideways above the bottom bar in the
  * frames' palette. Chrome rather than page content: it sits outside the scroll
- * container, so a long page cannot carry it away, and it fills a band that was
- * black before. The row simply clips at the right edge - the cut-off item is
- * the only affordance it needs.
+ * container, so a long page cannot carry it away. The row simply clips at the
+ * right edge - the cut-off item is the only affordance it needs.
  *
  * The names are written in capitals in the source rather than uppercased in
  * CSS: teletext has no lower case, so this is the spelling, not a transform.

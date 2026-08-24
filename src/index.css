@@ -33,18 +33,27 @@
    * The reading column, sized by the height it is given rather than by a fixed
    * width. A frame is 520 x 400*leading, so the width a height allows is that
    * height x 520 / (400 * leading). The column's own 100% competes with it and
-   * the smaller wins: a portrait phone is bound by its width and is unaffected,
-   * while an iPad or a landscape phone stops leaving half its height black.
+   * the smaller wins, so a portrait phone is bound by its width as before while
+   * an iPad stops leaving half its height black.
    *
    * The three bands subtracted here declare their heights rather than taking
    * them from their content, so the budget cannot over-report and hand the
-   * shell a scrollbar.
+   * shell a scrollbar. Two pixels come off anyway: the frame would otherwise
+   * fill the budget to the pixel, and a fractional column width rounded the
+   * wrong way is enough to put a scrollbar on the one screen that should fit.
+   *
+   * 560px was the old fixed cap and is the floor now, so the budget can only
+   * ever make the column wider than it used to be. Without it a short viewport
+   * - a landscape phone, or a portrait one with the keypad up - would compute a
+   * column narrower than the type can be read at, and one shorter than the
+   * chrome would clamp to zero and blank the page. Reading a tall page by
+   * scrolling is what those screens did before and is the better answer.
    */
   --frame-budget: calc(
     var(--viewport-height) - var(--freshness-height) - var(--rail-height) -
-      var(--bar-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+      var(--bar-height) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
   );
-  --frame-max: calc(var(--frame-budget) * 520 / (400 * var(--leading)));
+  --frame-max: max(560px, calc((var(--frame-budget) - 2px) * 520 / (400 * var(--leading))));
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
@@ -103,11 +112,23 @@ body {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  /* Declared rather than derived: --frame-budget subtracts this exact number. */
+  /*
+   * Declared rather than derived: --frame-budget subtracts this exact number,
+   * and flex-shrink would quietly make it a lie on a very short viewport.
+   */
+  flex: 0 0 auto;
   height: var(--freshness-height);
   padding: 0 10px;
   font-size: 12px;
   color: var(--dim);
+}
+
+/* The band is a fixed height now, so a wrapped status would spill out of it. */
+.freshness__status {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .freshness__source {
@@ -334,9 +355,9 @@ body {
 
 /*
  * The nine sections, sliding sideways above the bar in the frames' own palette
- * rather than the app's, so they read as a continuation of the page. They used
- * to sit under the frames inside the scroll container; they are chrome now, so
- * a long page can no longer carry them away.
+ * rather than the app's, so they read as a continuation of the page. They are
+ * chrome, not page content: they sit outside the scroll container, so a long
+ * page cannot carry them away.
  *
  * The row clips at the right edge with no fade and no arrow - the cut-off item
  * is the affordance - and the scrollbar is hidden in both engines, since the
@@ -344,9 +365,9 @@ body {
  */
 .rail {
   display: flex;
-  align-items: center;
   gap: 20px;
-  /* Declared rather than derived: --frame-budget subtracts this exact number. */
+  /* As .freshness above: declared, and held at that height by flex: 0 0 auto. */
+  flex: 0 0 auto;
   height: var(--rail-height);
   padding: 0 12px;
   background: #000;
@@ -356,6 +377,8 @@ body {
   /* The sideways rubber band belongs to the rail, not to the page behind it. */
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+  /* Keeps a tabbed-to item off the edge when the browser scrolls it into view. */
+  scroll-padding-inline: 12px;
   scrollbar-width: none;
   font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-stretch: 150%;
@@ -396,6 +419,15 @@ body {
   font-size: 15px;
   color: #00ffff;
   letter-spacing: 0.02em;
+}
+
+/*
+ * The band hides its overflow, so a ring drawn outside the button would be
+ * clipped to two slivers. Inset it and it survives.
+ */
+.rail__item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
 }
 
 /* You are here: drop out of the palette rather than add a marker. */
@@ -480,23 +512,14 @@ body {
   border-top: 1px solid #1c1c1c;
 }
 
-/*
- * The controls follow the reading column; the bar's black spans the viewport.
- *
- * The floor is the one place the column and the controls part company.
- * --frame-max is derived from the height now, so it collapses on a landscape
- * phone and again whenever the keypad opens - well below the ~305px these five
- * controls need. Flooring --frame-max itself would push the frame past its
- * budget, so the bar keeps its own minimum and gives up the optical alignment
- * only where there was never room for it.
- */
+/* The controls follow the reading column; the bar's black spans the viewport. */
 .bar__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  max-width: max(var(--frame-max), 320px);
+  max-width: var(--frame-max);
   padding: 0 12px;
 }
 

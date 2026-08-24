@@ -333,12 +333,19 @@ describe('genvägarna ovanför knappraden', () => {
     expect(shortcuts().filter((button) => button.hasAttribute('aria-current'))).toEqual([])
   })
 
+  it('visas även när sidan inte gick att hämta', async () => {
+    failNextFor('104')
+    openOn('104')
+    await screen.findByText('Kunde inte hämta sidan')
+
+    expect(shortcuts()).toHaveLength(9)
+  })
+
   it('ligger utanför behållaren som rullar', async () => {
     openOn('100')
     await currentPage('100')
 
-    // The whole point of the move: a page long enough to scroll must not be
-    // able to take the shortcuts off screen with it.
+    // A page long enough to scroll must not carry the shortcuts off screen.
     expect(screen.getByRole('main')).not.toContainElement(screen.getByLabelText('Genvägar'))
   })
 })
