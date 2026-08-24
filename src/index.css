@@ -6,8 +6,8 @@
  * relative so it survives a project-path base.
  */
 @font-face {
-  font-family: 'Inconsolata';
-  src: url('../inconsolata.woff2') format('woff2-variations');
+  font-family: "Inconsolata";
+  src: url("../inconsolata.woff2") format("woff2-variations");
   font-weight: 400;
   font-stretch: 50% 200%;
   font-display: swap;
@@ -20,19 +20,31 @@
  */
 :root {
   --bar-height: 56px;
-  /*
-   * The reading column. SVT's frames are 520px wide, so a hair above native is
-   * as large as they should ever be drawn: past that the character cells just
-   * magnify and a whole page stops fitting an iPad's height. Phones are
-   * narrower than this, so the cap never binds there.
-   */
-  --frame-max: 560px;
+  --rail-height: 44px;
+  --freshness-height: 26px;
   /*
    * Extra height per teletext row. The cell is 13x16 by broadcast, which packs
    * the lines tighter than a screen wants them; the rows are drawn on a taller
-   * cell and the frame grows to match, so the grid stays whole.
+   * cell and the frame grows to match, so the grid stays whole. 1.4-1.6 reads
+   * comfortably; past about 1.8 the doubled rows look stretched.
    */
-  --leading: 1.26;
+  --leading: 1.5;
+  /*
+   * The reading column, sized by the height it is given rather than by a fixed
+   * width. A frame is 520 x 400*leading, so the width a height allows is that
+   * height x 520 / (400 * leading). The column's own 100% competes with it and
+   * the smaller wins: a portrait phone is bound by its width and is unaffected,
+   * while an iPad or a landscape phone stops leaving half its height black.
+   *
+   * The three bands subtracted here declare those heights below rather than
+   * taking them from their content, so the budget cannot over-report and hand
+   * the shell a scrollbar.
+   */
+  --frame-budget: calc(
+    var(--viewport-height) - var(--freshness-height) - var(--rail-height) -
+      var(--bar-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
+  --frame-max: calc(var(--frame-budget) * 520 / (400 * var(--leading)));
   --ink: #ffffff;
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
@@ -57,7 +69,10 @@ body {
   height: 100%;
   background: #000;
   color: var(--ink);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   overscroll-behavior: none;
   overflow: hidden;
 }
@@ -88,9 +103,12 @@ body {
 
 .freshness {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 6px 10px;
+  /* Declared rather than derived: --frame-budget subtracts this exact number. */
+  height: var(--freshness-height);
+  padding: 0 10px;
   font-size: 12px;
   color: var(--dim);
 }
@@ -161,7 +179,7 @@ body {
   container-type: inline-size;
   overflow: hidden;
   background: #000;
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   /*
    * Type is set larger than the cell and narrowed by the same factor, so it
    * grows taller without growing wider: the wdth axis takes back on the width
@@ -258,8 +276,10 @@ body {
 /* R6: a glyph the table does not know falls back to its own slice of the GIF. */
 .text-frame__slice {
   background-repeat: no-repeat;
-  background-size: calc(var(--cols) * var(--cell-w)) calc(var(--rows) * var(--cell-h));
-  background-position: calc(var(--col) * var(--cell-w) * -1) calc(var(--row) * var(--cell-h) * -1);
+  background-size: calc(var(--cols) * var(--cell-w))
+    calc(var(--rows) * var(--cell-h));
+  background-position: calc(var(--col) * var(--cell-w) * -1)
+    calc(var(--row) * var(--cell-h) * -1);
   image-rendering: pixelated;
 }
 
@@ -336,7 +356,7 @@ body {
   row-gap: 0;
   margin-top: 2px;
   /* The frames' own face, so the shortcuts read as a continuation of the page. */
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-stretch: 150%;
 }
 
@@ -372,8 +392,8 @@ body {
 }
 
 /* You are here: drop out of the palette rather than add a marker. */
-.links__item[aria-current='page'] .links__num,
-.links__item[aria-current='page'] .links__name {
+.links__item[aria-current="page"] .links__num,
+.links__item[aria-current="page"] .links__name {
   color: #fff;
 }
 
@@ -443,7 +463,7 @@ body {
  * would be a mosaic, and these are chrome rather than page content.
  */
 .bar {
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-stretch: 150%;
   display: flex;
   justify-content: center;
@@ -453,14 +473,23 @@ body {
   border-top: 1px solid #1c1c1c;
 }
 
-/* The controls follow the reading column; the bar's black spans the viewport. */
+/*
+ * The controls follow the reading column; the bar's black spans the viewport.
+ *
+ * The floor is the one place the column and the controls are allowed to part
+ * company. --frame-max is derived from the height now, so it collapses on a
+ * landscape phone and again whenever the keypad opens - well below the ~305px
+ * these five controls need. Flooring --frame-max itself would push the frame
+ * past its budget, so the bar keeps its own minimum and gives up the optical
+ * alignment only where there was never room for it.
+ */
 .bar__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  max-width: var(--frame-max);
+  max-width: max(var(--frame-max), 320px);
   padding: 0 12px;
 }
 
