@@ -2,6 +2,7 @@ import { BottomBar } from './components/BottomBar'
 import { FreshnessBar } from './components/FreshnessBar'
 import { NotBroadcast } from './components/NotBroadcast'
 import { PageView } from './components/PageView'
+import { QuickLinks } from './components/QuickLinks'
 import { TransportError } from './components/TransportError'
 import { HOME_PAGE, useTextTv } from './useTextTv'
 import { useVisualViewport } from './useVisualViewport'
@@ -23,6 +24,7 @@ export function App() {
         )}
         {result?.kind === 'error' && <TransportError result={result} onRetry={reload} />}
       </main>
+      <QuickLinks current={pageNumber} onNavigate={navigate} />
       <BottomBar
         pageNumber={pageNumber}
         prev={neighbours?.prev}

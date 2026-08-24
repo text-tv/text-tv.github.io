@@ -260,7 +260,7 @@ describe('överlappande länkar', () => {
   })
 })
 
-describe('genvägarna under bilden', () => {
+describe('genvägarna ovanför knappraden', () => {
   const shortcuts = () => within(screen.getByLabelText('Genvägar')).getAllByRole('button')
 
   const shortcut = (name: string) =>
@@ -323,11 +323,23 @@ describe('genvägarna under bilden', () => {
     expect(shortcut('100 NYHETER')).not.toHaveAttribute('aria-current')
   })
 
-  it('visas inte för en sida som inte sänds', async () => {
+  it('visas även för en sida som inte sänds', async () => {
     openOn('200')
     await screen.findByText('Sidan ej i sändning')
 
-    expect(screen.queryByLabelText('Genvägar')).not.toBeInTheDocument()
+    // The rail is the shell's, not the page's: it outlives a result that has
+    // no page to belong to. 200 is not one of the nine, so nothing is marked.
+    expect(shortcuts()).toHaveLength(9)
+    expect(shortcuts().filter((button) => button.hasAttribute('aria-current'))).toEqual([])
+  })
+
+  it('ligger utanför behållaren som rullar', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    // The whole point of the move: a page long enough to scroll must not be
+    // able to take the shortcuts off screen with it.
+    expect(screen.getByRole('main')).not.toContainElement(screen.getByLabelText('Genvägar'))
   })
 })
 
