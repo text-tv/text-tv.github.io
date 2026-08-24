@@ -24,9 +24,11 @@ const frames = new WeakMap<object, Frame>()
  *
  * Each value is a different refusal in `decodeFrame`: a bitmap that is not
  * 520x400, a cell of three colours, and a cell whose mask no glyph in the
- * table matches.
+ * table matches. `unknown-glyph` blanks a cell the page leaves empty, so the
+ * row no longer lines up with its altText; `unseen-glyph` rewrites one the
+ * page draws, so it does.
  */
-type Damage = 'none' | 'size' | 'three-colour' | 'unknown-glyph'
+type Damage = 'none' | 'size' | 'three-colour' | 'unknown-glyph' | 'unseen-glyph'
 
 let damage: Damage = 'none'
 
@@ -43,6 +45,15 @@ export const addThreeColourCell = (): void => {
 /** Puts a mask the glyph table has never seen in one cell, for the R6 slice. */
 export const addUnknownCell = (): void => {
   damage = 'unknown-glyph'
+}
+
+/**
+ * Rewrites a cell the page draws with a mask no glyph matches, leaving the row
+ * as occupied as it was. The altText still lines up, so the character it names
+ * is what the cell has to render.
+ */
+export const addUnseenCell = (): void => {
+  damage = 'unseen-glyph'
 }
 
 /** Decodes that have been started but not let through, in order. */
@@ -84,11 +95,55 @@ const paint = (rgba: Uint8ClampedArray, width: number, x: number, y: number, [r,
   rgba[offset + 3] = 255
 }
 
+/** Row y lights bits y + 1: the mask resolve.test.ts also treats as unholdable. */
+const paintUnseenGlyph = (
+  rgba: Uint8ClampedArray,
+  width: number,
+  originX: number,
+  originY: number,
+): void => {
+  for (let y = 0; y < CELL_HEIGHT; y += 1) {
+    for (let x = 0; x < CELL_WIDTH; x += 1) {
+      const lit = ((y + 1) >> x) & 1
+      paint(rgba, width, originX + x, originY + y, lit ? MAGENTA : [0, 0, 0])
+    }
+  }
+}
+
+/** The origin of the first cell the frame draws anything in, row-major. */
+const firstDrawnCell = (
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+): [number, number] => {
+  const at = (x: number, y: number) => rgba.slice((y * width + x) * 4, (y * width + x) * 4 + 3).join()
+  for (let originY = 0; originY + CELL_HEIGHT <= height; originY += CELL_HEIGHT) {
+    for (let originX = 0; originX + CELL_WIDTH <= width; originX += CELL_WIDTH) {
+      const first = at(originX, originY)
+      for (let y = 0; y < CELL_HEIGHT; y += 1) {
+        for (let x = 0; x < CELL_WIDTH; x += 1) {
+          if (at(originX + x, originY + y) !== first) return [originX, originY]
+        }
+      }
+    }
+  }
+  // A frame that draws nothing would leave the damage unapplied, and the test
+  // asking for it would pass on an undamaged page without ever saying so.
+  throw new Error('ingen ritad cell att skada')
+}
+
 /**
- * Repaints the frame's top-left 13x16 cell, black behind whichever damage the
- * test asked for, so the rest of the page still decodes as itself.
+ * Repaints one 13x16 cell, black behind whichever damage the test asked for,
+ * so the rest of the page still decodes as itself. Which cell depends on the
+ * damage: the top-left one is blank on every page, which is what makes it
+ * useful for a row that can no longer be aligned.
  */
-const damageFirstCell = (rgba: Uint8ClampedArray, width: number): void => {
+const damageOneCell = (rgba: Uint8ClampedArray, width: number, height: number): void => {
+  if (damage === 'unseen-glyph') {
+    const [originX, originY] = firstDrawnCell(rgba, width, height)
+    paintUnseenGlyph(rgba, width, originX, originY)
+    return
+  }
   if (damage !== 'three-colour' && damage !== 'unknown-glyph') return
   for (let y = 0; y < CELL_HEIGHT; y += 1) {
     for (let x = 0; x < CELL_WIDTH; x += 1) paint(rgba, width, x, y, [0, 0, 0])
@@ -98,13 +153,7 @@ const damageFirstCell = (rgba: Uint8ClampedArray, width: number): void => {
     paint(rgba, width, 1, 0, CYAN)
     return
   }
-  // Row y lights bits y + 1, which is the mask resolve.test.ts also treats as
-  // one the table cannot hold.
-  for (let y = 0; y < CELL_HEIGHT; y += 1) {
-    for (let x = 0; x < CELL_WIDTH; x += 1) {
-      if (((y + 1) >> x) & 1) paint(rgba, width, x, y, MAGENTA)
-    }
-  }
+  paintUnseenGlyph(rgba, width, 0, 0)
 }
 
 const toRgba = (gif: ReturnType<typeof decodeGif>): Uint8ClampedArray => {
@@ -117,7 +166,7 @@ const toRgba = (gif: ReturnType<typeof decodeGif>): Uint8ClampedArray => {
     rgba[i * 4 + 2] = b
     rgba[i * 4 + 3] = 255
   }
-  damageFirstCell(rgba, gif.w)
+  damageOneCell(rgba, gif.w, gif.h)
   return rgba
 }
 

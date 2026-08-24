@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { decodeGif } from './gif.mjs'
+import { alignAltText } from '../src/teletext/align.js'
 import { doubleHeightKey, isStretched, maskKey } from '../src/teletext/mask.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -149,8 +150,6 @@ function displayRows(masks) {
   return rows
 }
 
-const sameOccupancy = (a, b) => a.every((cell, i) => cell === b[i])
-
 /**
  * Every captured response, from both corpora.
  *
@@ -158,7 +157,8 @@ const sameOccupancy = (a, b) => a.every((cell, i) => cell === b[i])
  * tests also read; fixtures/glyphs/ is a wider harvest that exists only to
  * train this table. Held-out coverage is the reason for the second one: on the
  * six fixtures alone a page the table has never seen leaves about 5% of its
- * cells with no glyph, and every one of those falls back to a GIF slice.
+ * cells with no glyph. The page's own altText now names about three quarters of
+ * those; the rest are what falls back to a GIF slice.
  */
 const corpora = [
   { dir: fixturesDir, matches: (n) => /^raw_\d{3}\.json$/.test(n) },
@@ -218,34 +218,23 @@ for (const page of pages) {
   const rows = displayRows(masks)
   for (const row of rows) for (let col = 0; col < COLS; col += 1) cellGlyph(masks, row, col)
 
-  // altText runs down the page, so the rows it labels must too. Uniqueness
-  // alone rejects ambiguity but not misalignment: a line that cannot match its
-  // own row - any row holding a mosaic is spaced out in altText - may still be
-  // the only match for some other row, and would vote every one of its
-  // characters onto the wrong glyphs.
-  let lastMatched = -1
+  // Only an unambiguously aligned line may vote: a wrong label outvotes nothing
+  // but poisons a key. src/teletext/align.js owns which lines are turned away.
+  const aligned = alignAltText(
+    rows.map((row) => row.occupancy),
+    page.altText,
+    COLS,
+  )
+  rejectedLines += aligned.rejectedLines
+  rejectedVotes += aligned.rejectedVotes
 
-  for (const line of page.altText.split('\n')) {
-    if (line.trim() === '') continue
-    const text = line.slice(0, COLS).padEnd(COLS, ' ')
-    const occ = Array.from(text, (ch) => ch !== ' ')
-    // Only an unambiguous alignment may vote: a first match that happens to fit
-    // labels the wrong row, and a wrong label outvotes nothing but poisons a key.
-    const matches = rows.filter((row) => sameOccupancy(row.occupancy, occ))
-    if (matches.length !== 1) continue
-    const row = matches[0]
-    const index = rows.indexOf(row)
-    if (index <= lastMatched) {
-      rejectedLines += 1
-      for (let col = 0; col < COLS; col += 1) if (text[col] !== ' ') rejectedVotes += 1
-      continue
-    }
-    lastMatched = index
-
+  for (let index = 0; index < rows.length; index += 1) {
+    const text = aligned.lines[index]
+    if (text === null) continue
     for (let col = 0; col < COLS; col += 1) {
       const char = text[col]
       if (char === ' ') continue
-      const entry = cellGlyph(masks, row, col)
+      const entry = cellGlyph(masks, rows[index], col)
       if (entry !== null) entry.votes.set(char, (entry.votes.get(char) ?? 0) + 1)
     }
   }

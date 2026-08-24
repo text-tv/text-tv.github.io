@@ -5,6 +5,7 @@ import { resetDecodeCache } from './teletext/decode'
 import {
   addThreeColourCell,
   addUnknownCell,
+  addUnseenCell,
   breakFrameDecoding,
   heldFrames,
   holdFrameDecoding,
@@ -102,6 +103,18 @@ describe('läsa en sida', () => {
     const slices = [...document.querySelectorAll('.text-frame__slice')]
     expect(slices).toHaveLength(1)
     expect((slices[0] as HTMLElement).style.backgroundImage).toContain('data:image/gif;base64,')
+  })
+
+  it('läser ett tecken tabellen saknar ur sidans egen alt-text', async () => {
+    addUnseenCell()
+    openOn('100')
+    await drawnFrames(1)
+
+    // The damaged cell is the first one the page draws - the '1' of '100' on
+    // the header row. Its mask is unknown, but the row still lines up with the
+    // alt text, so the character is named there rather than cut out of the GIF.
+    expect(document.querySelectorAll('.text-frame__slice')).toHaveLength(0)
+    expect(frames()[0]).toHaveTextContent('100 SVT Text')
   })
 
   it('ritar inte en överspelad delsida under den nya rutan', async () => {

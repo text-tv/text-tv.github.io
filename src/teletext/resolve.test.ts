@@ -15,6 +15,9 @@ const X_TOP = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1548, 1548, 1820, 1820, 952, 952]
 const X_BOTTOM = [496, 496, 496, 496, 952, 952, 1820, 1820, 1548, 1548, 0, 0, 0, 0, 0, 0]
 const MOSAIC = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 63, 63, 63, 63, 63]
 const UNSEEN = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+/* The same mask set at double height, so both of resolve's lookups miss it. */
+const UNSEEN_TOP = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8]
+const UNSEEN_BOTTOM = [9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16]
 
 const blank = (bg = BLACK): Cell => ({ bg, fg: bg, mask: null })
 
@@ -34,8 +37,12 @@ const glyph = (mask: number[], fg = WHITE, bg = BLACK): Cell => ({
  * The runs of one display row, found by the grid row it starts on, with the
  * blank tail of the row trimmed away so a test only states the cells it set.
  */
-const runsOf = (cells: Cell[], row: number): { doubleHeight: boolean; runs: Run[] } => {
-  const found = resolvePage(cells).find((display) => display.row === row)
+const runsOf = (
+  cells: Cell[],
+  row: number,
+  altText = '',
+): { doubleHeight: boolean; runs: Run[] } => {
+  const found = resolvePage(cells, altText).find((display) => display.row === row)
   if (found === undefined) throw new Error(`ingen rad ${row}`)
   const runs = found.runs.map((run) =>
     run.kind === 'text' ? { ...run, text: run.text.trimEnd(), width: run.text.trimEnd().length } : run,
@@ -128,12 +135,79 @@ describe('resolvePage', () => {
     ])
   })
 
-  it('lämnar en okänd mask till cellreserven', () => {
+  it('lämnar en okänd mask till cellreserven utan alt-text', () => {
     const cells = grid()
     put(cells, 3, 0, glyph(A))
     put(cells, 3, 1, glyph(UNSEEN))
 
     const { runs } = runsOf(cells, 3)
     expect(runs[1]).toMatchObject({ kind: 'unknown', col: 1, width: 1, fg: WHITE, bg: BLACK })
+  })
+
+  it('namnger en okänd mask ur alt-texten och tar med den i körningen', () => {
+    const cells = grid()
+    put(cells, 3, 0, glyph(A))
+    put(cells, 3, 1, glyph(UNSEEN))
+
+    const [run] = runsOf(cells, 3, 'aé').runs
+    expect(run).toMatchObject({ kind: 'text', col: 0, width: 2, fg: WHITE, bg: BLACK })
+    expect(run).toHaveProperty('text', 'aé')
+  })
+
+  it('namnger en okänd mask i dubbel höjd ur radens enda alt-textrad', () => {
+    const cells = grid()
+    put(cells, 3, 0, glyph(A_TOP))
+    put(cells, 4, 0, glyph(A_BOTTOM))
+    put(cells, 3, 1, glyph(UNSEEN_TOP))
+    put(cells, 4, 1, glyph(UNSEEN_BOTTOM))
+    // Drawn in the bottom half only, so the row is occupied there and nowhere
+    // else: the alt text only lines up if both halves count towards the row.
+    put(cells, 4, 2, glyph(A_BOTTOM))
+
+    const row = runsOf(cells, 3, 'aéa')
+    expect(row.doubleHeight).toBe(true)
+    expect(row.runs[0]).toHaveProperty('text', 'aéa')
+  })
+
+  it('namnger ingenting när alt-textraden passar flera rader', () => {
+    const cells = grid()
+    for (const row of [3, 5]) {
+      put(cells, row, 0, glyph(A))
+      put(cells, row, 1, glyph(UNSEEN))
+    }
+
+    // One line, two rows it fits equally well: neither may take it.
+    const { runs } = runsOf(cells, 3, 'aé')
+    expect(runs[1]).toMatchObject({ kind: 'unknown', col: 1 })
+  })
+
+  it('litar inte på en rad som motsäger tecknen tabellen redan kan', () => {
+    const cells = grid()
+    // A mosaic row: altText spaces mosaics out, so its line can never match the
+    // row it belongs to - but it fits the text row below exactly.
+    for (const col of [0, 1, 2, 3]) put(cells, 3, col, glyph(MOSAIC))
+    put(cells, 5, 1, glyph(A))
+    put(cells, 5, 2, glyph(N))
+    put(cells, 5, 3, glyph(UNSEEN))
+
+    // ' XYZ' is the mosaic row's text and matches row 5's occupancy alone, so
+    // it claims row 5 and pushes row 5's own line out as out-of-order. The
+    // cells the table knows say 'a' and 'n', not 'X' and 'Y', which is what
+    // catches it - the unknown cell stays a slice rather than becoming 'Z'.
+    const { runs } = runsOf(cells, 5, ' XYZ\n ané')
+    expect(runs.find((run) => run.col === 3)).toMatchObject({ kind: 'unknown', col: 3 })
+    expect(runs.find((run) => run.kind === 'text')).toHaveProperty('text', ' an')
+  })
+
+  it('namnger ingenting när alt-textraden skulle gå uppåt i sidan', () => {
+    const cells = grid()
+    put(cells, 3, 0, glyph(A))
+    put(cells, 3, 1, glyph(UNSEEN))
+    put(cells, 5, 0, glyph(A))
+
+    // 'a' takes the lower row first, so 'aé' would have to label a row above
+    // it - out of order, and refused.
+    const { runs } = runsOf(cells, 3, 'a\naé')
+    expect(runs[1]).toMatchObject({ kind: 'unknown', col: 1 })
   })
 })

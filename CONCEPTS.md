@@ -18,7 +18,7 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 **Glyph** — what a cell's bitmap draws: either a character, or block graphics. The distinction matters because only one of the two is text.
 
-**Glyph table** — the mapping from a cell bitmap to the character it draws, built ahead of time from captured pages and shipped with the app. It is what makes it possible to render a page as text at all, since the upstream service publishes no characters. A bitmap the table has never seen falls back to showing that one cell as a picture, so an unrecognised glyph costs a cell rather than a page.
+**Glyph table** — the mapping from a cell bitmap to the character it draws, built ahead of time from captured pages and shipped with the app. It is what makes it possible to render a page as text at all, since the upstream service publishes no characters. A bitmap the table has never seen is named from the page's own alt text instead; only where that cannot be aligned does the cell fall back to showing itself as a picture, so an unrecognised glyph costs a cell rather than a page.
 
 **Mosaic** — a cell of block graphics rather than a letter: a small fixed arrangement of solid blocks, used for logos, rules and coloured banners. Mosaics carry no character, so they are drawn as shapes and are absent from any text the page yields.
 

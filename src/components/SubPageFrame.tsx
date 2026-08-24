@@ -37,13 +37,13 @@ export function SubPageFrame({ subPage, onNavigate }: Props) {
       // A superseded sub-page's grid must never paint under the new frame.
       if (!current) return
       if (cells === null) setDecoded({ status: 'failed' })
-      else setDecoded({ status: 'resolved', rows: resolvePage(cells) })
+      else setDecoded({ status: 'resolved', rows: resolvePage(cells, subPage.altText) })
     })
 
     return () => {
       current = false
     }
-  }, [subPage.gifDataUrl])
+  }, [subPage.gifDataUrl, subPage.altText])
 
   return (
     // The label names the group only while the <img> is all there is; once the

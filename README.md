@@ -103,7 +103,9 @@ dev gives a transport error rather than SVT's "not broadcast" answer.
   colours, block graphics) and hands it to `TextFrame`, which draws the page as
   positioned runs of text. `glyphs.generated.ts` is the lookup table from cell
   bitmap to character, built from the fixtures by `npm run glyphs`. A cell the
-  table does not know, or a frame that does not decode, falls back to the GIF.
+  table does not know is named from the sub-page's own alt text, lined up with
+  the grid by `align.js`; only a cell no alignment reaches, or a frame that
+  does not decode at all, falls back to the GIF.
 - `src/imageMap.ts` — parses SVT's `<map>` string into rects, and resolves a
   touch to the rect whose centre is nearest. Pure, and directly unit-tested.
 - `src/useTextTv.ts` — current page, freshness and caching. Navigation goes
