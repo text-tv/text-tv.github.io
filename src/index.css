@@ -49,10 +49,11 @@
    * chrome would clamp to zero and blank the page. Reading a tall page by
    * scrolling is what those screens did before and is the better answer.
    *
-   * The 900px ceiling is the other end of the same argument. A frame is 520px
-   * by broadcast, so past this the cells are simply magnified: a tall desktop
-   * window would otherwise draw the page at more than twice native size and
-   * leave the height it was given to a wall of enormous characters.
+   * The 640px ceiling is the other end of the same argument. A frame is 520px
+   * by broadcast, so past that the cells are only being magnified. An iPad held
+   * upright has the height for a 920px column and it reads as blown up rather
+   * than generous, so the column stops a fifth above native - about where a
+   * landscape iPad's own budget lands it anyway.
    */
   --frame-budget: calc(
     var(--viewport-height) - var(--freshness-height) - var(--rail-height) -
@@ -61,7 +62,7 @@
   --frame-max: clamp(
     560px,
     calc((var(--frame-budget) - 2px) * 520 / (400 * var(--leading))),
-    900px
+    640px
   );
   --ink: #ffffff;
   --dim: #8a8a8a;
