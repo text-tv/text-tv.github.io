@@ -25,3 +25,7 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 **Double height** — a row drawn at twice its normal height, used for headlines. The stretch is vertical only: a double-height character still occupies one column, and it spans two grid rows, the lower of which is not a row of its own.
 
 **Hotspot** — a clickable region over a frame that navigates to another page. The upstream service publishes their coordinates alongside the frame, which is the only part of a page's meaning it states outright rather than leaving to be read out of the picture.
+
+## Reading gestures
+
+**Edge gutter** — the strip along each side of the screen where the app declines to read a sideways drag as a page change, because the operating system arms its own back gesture there. The app cannot cancel that gesture, so the gutter is how the two are kept from competing: inside it the system wins by default, outside it the drag is the reader's.

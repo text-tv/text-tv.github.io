@@ -57,3 +57,12 @@ Production has no `VITE_SVT_API_BASE` override, so it uses the real endpoint.
   back button works.
 - Style teletext frames with `image-rendering: pixelated`; respect safe-area
   insets for installed/standalone display.
+
+## Project knowledge
+
+- `docs/solutions/` — documented solutions to past problems (bugs, best
+  practices, workflow patterns), organised by category with YAML frontmatter
+  (`module`, `tags`, `problem_type`). Relevant when implementing or debugging
+  in a documented area.
+- `CONCEPTS.md` — shared domain vocabulary, relevant when orienting to the
+  codebase or discussing domain concepts.
