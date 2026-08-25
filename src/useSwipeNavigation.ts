@@ -8,6 +8,7 @@ import {
   smoothVelocity,
   startsInGutter,
   swipeDirection,
+  translationOf,
   type Point,
 } from './swipe'
 
@@ -26,13 +27,10 @@ const commitTarget = (direction: 'prev' | 'next') =>
 
 /** The px offset a track is sitting at, as far as it can be read back. */
 const offsetOf = (track: HTMLElement) => {
-  // Mid-transition the computed value is a matrix; before one it is whatever
-  // was written, and a calc() commit target reads back as no offset at all.
+  // Mid-transition the painted value is where the sheet actually is, which is
+  // the whole point of asking; what was written is only the target.
   const painted = getComputedStyle(track).transform
-  const matrix = /matrix\([^)]*?,\s*(-?[\d.]+),\s*-?[\d.]+\)/.exec(painted)
-  if (matrix) return Number(matrix[1])
-  const written = /translate3d\((-?[\d.]+)px/.exec(track.style.transform)
-  return written ? Number(written[1]) : 0
+  return translationOf(painted) ?? translationOf(track.style.transform) ?? 0
 }
 
 interface Gesture {
@@ -94,21 +92,23 @@ export function useSwipeNavigation({
   const swallow = useRef<((event: MouseEvent) => void) | undefined>(undefined)
   /** The page change the snap in flight makes when its transition ends. */
   const queued = useRef<{ page: PageNumber; direction: 'prev' | 'next' } | undefined>(undefined)
-  /** Which way the swipe that is changing the page went. */
+  /**
+   * Which way the swipe that is changing the page went, and the signal that a
+   * swipe is what changed it: an ordinary navigation leaves this undefined and
+   * the reset below stays out of its way.
+   */
   const swapped = useRef<'prev' | 'next' | undefined>(undefined)
-  /** Set when a swipe caused the page change, so the reset only runs for one. */
-  const swiped = useRef(false)
   /**
    * The neighbours and navigate change with every page, but re-attaching the
    * listeners on each change would drop a gesture mid-drag; a ref keeps them
    * current instead.
    */
-  const latest = useRef({ prev, next, navigate, onDragging, onSwap })
+  const latest = useRef({ pageNumber, prev, next, navigate, onDragging, onSwap })
   // Not written during render, which would break React's purity contract, and
   // not in a passive effect either: those flush asynchronously, so a swipe made
   // right after a page loaded could still read the previous page's neighbours.
   useLayoutEffect(() => {
-    latest.current = { prev, next, navigate, onDragging, onSwap }
+    latest.current = { pageNumber, prev, next, navigate, onDragging, onSwap }
   })
 
   /**
@@ -117,10 +117,17 @@ export function useSwipeNavigation({
    * would paint the outgoing page snapped back to centre first.
    */
   useLayoutEffect(() => {
-    if (!swiped.current) return
-    swiped.current = false
-    if (swapped.current) latest.current.onSwap(swapped.current)
+    const direction = swapped.current
+    if (!direction) return
     swapped.current = undefined
+    // The rotation always happens: it is what makes the neighbour's own
+    // decoded sheet the current one.
+    latest.current.onSwap(direction)
+    // The reset does not, when a new gesture has already grabbed the track in
+    // the frames the hash took to land. Wiping the transform there would
+    // snatch the sheet back from under the finger and unmount the neighbours
+    // it is dragging toward, with nothing left to mount them again.
+    if (gesture.current) return
     const element = track.current
     if (element) {
       element.style.transition = ''
@@ -169,7 +176,10 @@ export function useSwipeNavigation({
       // second pointerdown is never the primary one: reading isPrimary first
       // would return early and leave the first finger armed to commit.
       if (gesture.current) {
-        gesture.current = undefined
+        // Ending it rather than forgetting it: a second finger arriving after
+        // the axis locked would otherwise leave the sheet parked wherever the
+        // first one left it, with the neighbours still mounted.
+        endGesture(true)
         return
       }
       if (!event.isPrimary) return
@@ -238,10 +248,13 @@ export function useSwipeNavigation({
 
     /** The snap is over: the page change it was carrying happens now. */
     const settle = () => {
+      // Taking a snap over clears its transition, and clearing a running
+      // transition fires transitioncancel - this very handler. A gesture is
+      // live at that moment, and it owns the track now.
+      if (gesture.current) return
       const commit = queued.current
       queued.current = undefined
       if (commit) {
-        swiped.current = true
         swapped.current = commit.direction
         latest.current.navigate(commit.page)
         return
@@ -269,7 +282,14 @@ export function useSwipeNavigation({
         ? undefined
         : swipeDirection(live.start, live.last, window.innerWidth, live.velocity)
       const { prev: back, next: on } = latest.current
-      const target = direction && (direction === 'prev' ? back : on)
+      const named = direction && (direction === 'prev' ? back : on)
+      // A neighbour can name the page already on screen - the held pair still
+      // points at a page the reader swiped onto while it was loading. Treating
+      // it as a target would commit to where the sheet already is, navigate
+      // would no-op on the matching hash, and the page number would never
+      // change, so the effect that resets the track would never run: parked
+      // off-centre with nothing left to bring it back.
+      const target = named === latest.current.pageNumber ? undefined : named
 
       const moving = track.current
       if (!motion || !moving || live.axis !== 'x') {

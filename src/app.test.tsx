@@ -75,6 +75,41 @@ const tapAt = (layer: HTMLElement, clientX: number, clientY: number) => {
   )
 }
 
+const container = () => screen.getByRole('main')
+const track = () => document.querySelector('.swipe-track') as HTMLElement
+const sheets = () => [...document.querySelectorAll<HTMLElement>('.swipe-sheet')]
+
+/** The shape every finger in these tests has: one touch, the primary one. */
+const finger = {
+  bubbles: true,
+  cancelable: true,
+  pointerId: 1,
+  pointerType: 'touch',
+  isPrimary: true,
+}
+
+/**
+ * One pointer event, on a clock the test chooses. `timeStamp` is read-only on
+ * the constructor, and the flick rule is nothing but timestamps.
+ */
+const fire = (
+  target: EventTarget,
+  type: string,
+  clientX: number,
+  clientY: number,
+  timeStamp?: number,
+) => {
+  const event = new PointerEvent(type, { ...finger, clientX, clientY })
+  if (timeStamp !== undefined) Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+  target.dispatchEvent(event)
+}
+
+/** happy-dom runs no transitions, so the snap only ever ends by hand. */
+const snapEnds = () => track()?.dispatchEvent(new Event('transitionend'))
+
+/** Long enough for anything the app was going to do on its own to have run. */
+const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
+
 describe('läsa en sida', () => {
   it('visar sida 100 som riktig text, inte som bild', async () => {
     openOn('100')
@@ -644,42 +679,9 @@ describe('svep mellan sidor', () => {
 })
 
 describe('svepet följer fingret', () => {
-  const container = () => screen.getByRole('main')
-  const track = () => document.querySelector('.swipe-track') as HTMLElement
-  const sheets = () => [...document.querySelectorAll<HTMLElement>('.swipe-sheet')]
-
-  const finger = {
-    bubbles: true,
-    cancelable: true,
-    pointerId: 1,
-    pointerType: 'touch',
-    isPrimary: true,
-  }
-
-  /**
-   * One pointer event, on a clock the test chooses. `timeStamp` is read-only on
-   * the constructor, and the flick rule is nothing but timestamps.
-   */
-  const fire = (
-    target: EventTarget,
-    type: string,
-    clientX: number,
-    clientY: number,
-    timeStamp?: number,
-  ) => {
-    const event = new PointerEvent(type, { ...finger, clientX, clientY })
-    if (timeStamp !== undefined) Object.defineProperty(event, 'timeStamp', { value: timeStamp })
-    target.dispatchEvent(event)
-  }
-
-  /** happy-dom runs no transitions, so the snap only ever ends by hand. */
-  const snapEnds = () => track().dispatchEvent(new Event('transitionend'))
-
-  /** No layout either: the damping ceiling needs a width from somewhere. */
+  /** No layout in happy-dom: the damping ceiling needs a width from somewhere. */
   const trackIs = (width: number) =>
     Object.defineProperty(track(), 'clientWidth', { value: width, configurable: true })
-
-  const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
 
   const realMatchMedia = window.matchMedia
   const realWidth = window.innerWidth
@@ -932,6 +934,87 @@ describe('svepet följer fingret', () => {
     expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
   })
 
+  /**
+   * Clearing a running transition is what fires transitioncancel, so the grab
+   * provokes the very event that would undo it.
+   */
+  // R17
+  it('överlever avbrottet som greppet självt utlöser', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    fire(container(), 'pointerup', 380, 300, 50)
+
+    fire(container(), 'pointerdown', 500, 300, 100)
+    fire(container(), 'pointermove', 470, 300, 1100)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+
+    track().dispatchEvent(new Event('transitioncancel'))
+    await settled()
+
+    // The grab still owns the track, and the page change it abandoned stays
+    // abandoned.
+    expect(track().style.transform).toBe('translate3d(-30px, 0, 0)')
+    expect(sheets()).toHaveLength(3)
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  /**
+   * The hash lands a frame or more after the commit, so a quick reader can
+   * already be dragging again when the page finally changes underneath.
+   */
+  // R9, R17
+  it('låter inte det försenade sidbytet rycka undan nästa gest', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    fire(container(), 'pointerup', 380, 300, 50)
+    snapEnds()
+
+    // Down and moving before the new page has rendered.
+    fire(container(), 'pointerdown', 500, 300, 100)
+    fire(container(), 'pointermove', 460, 300, 1100)
+
+    await currentPage('105')
+
+    expect(track().style.transform).toBe('translate3d(-40px, 0, 0)')
+    expect(sheets()).toHaveLength(3)
+  })
+
+  // R14
+  it('lämnar inte arket stående när ett andra finger avbryter mitt i draget', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 440, 300, 50)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+    expect(track().style.transform).toBe('translate3d(-60px, 0, 0)')
+
+    // A real second finger is a different pointer, and never the primary one.
+    container().dispatchEvent(
+      new PointerEvent('pointerdown', {
+        ...finger,
+        pointerId: 2,
+        isPrimary: false,
+        clientX: 300,
+        clientY: 300,
+      }),
+    )
+
+    // It aborts the gesture, which means springing the sheet back - not just
+    // forgetting the finger and leaving it where it stopped.
+    expect(track().style.transition).toBe('transform 300ms cubic-bezier(.22,1,.36,1)')
+    expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+    snapEnds()
+    await waitFor(() => expect(sheets()).toHaveLength(1))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
   // R14
   it('fjädrar tillbaka när webbläsaren tar gesten', async () => {
     openOn('104')
@@ -1036,48 +1119,32 @@ describe('svepet följer fingret', () => {
 
 
 describe('grannarna vid sidan om', () => {
-  const container = () => screen.getByRole('main')
-  const sheets = () => [...document.querySelectorAll<HTMLElement>('.swipe-sheet')]
   const sheetFor = (pageNumber: string) =>
     sheets().find((sheet) => sheet.dataset.page === pageNumber)!
 
-  const finger = {
-    bubbles: true,
-    cancelable: true,
-    pointerId: 1,
-    pointerType: 'touch',
-    isPrimary: true,
-  }
-
-  /** One pointer event on a clock the test chooses; the flick rule is timestamps. */
-  const fire = (type: string, clientX: number, timeStamp: number) => {
-    const event = new PointerEvent(type, { ...finger, clientX, clientY: 300 })
-    Object.defineProperty(event, 'timeStamp', { value: timeStamp })
-    container().dispatchEvent(event)
-  }
-
-  /** happy-dom runs no transitions, so the snap only ever ends by hand. */
-  const snapEnds = () => document.querySelector('.swipe-track')?.dispatchEvent(new Event('transitionend'))
+  /** Every gesture here runs straight down the middle of the content. */
+  const drag = (type: string, clientX: number, timeStamp: number) =>
+    fire(container(), type, clientX, 300, timeStamp)
 
   /** Holds the finger out past the axis lock, so the neighbours are on screen. */
   const dragOut = async (dx: number) => {
-    fire('pointerdown', 500, 0)
+    drag('pointerdown', 500, 0)
     // A thousand milliseconds of travel is no flick: the lift below cancels.
-    fire('pointermove', 500 + dx, 1000)
+    drag('pointermove', 500 + dx, 1000)
     await waitFor(() => expect(sheets()).toHaveLength(3))
   }
 
   const letGo = async () => {
-    fire('pointerup', 480, 1000)
+    drag('pointerup', 480, 1000)
     snapEnds()
     await waitFor(() => expect(sheets()).toHaveLength(1))
   }
 
   /** A flick, all the way through the swap. */
   const swipe = (dx: number) => {
-    fire('pointerdown', 500, 0)
-    fire('pointermove', 500 + dx, 50)
-    fire('pointerup', 500 + dx, 50)
+    drag('pointerdown', 500, 0)
+    drag('pointermove', 500 + dx, 50)
+    drag('pointerup', 500 + dx, 50)
     snapEnds()
   }
 
@@ -1223,6 +1290,32 @@ describe('grannarna vid sidan om', () => {
     // neighbours still point.
     swipe(120)
     await currentPage('102')
+  })
+
+  /**
+   * Those held neighbours can name the page now on screen: 105 is 104's next,
+   * and 105 is where the reader now is.
+   */
+  // R13
+  it('sveper inte till sidan man redan står på', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+
+    swipe(-120)
+    await currentPage('105')
+
+    drag('pointerdown', 500, 0)
+    drag('pointermove', 380, 50)
+    drag('pointerup', 380, 50)
+
+    // Committing there would navigate to the hash already in the bar, so the
+    // page number would never change and nothing would ever recentre the
+    // sheet. It springs back instead.
+    expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+    snapEnds()
+    await waitFor(() => expect(sheets()).toHaveLength(1))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('105')
   })
 })
 

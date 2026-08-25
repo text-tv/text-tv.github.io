@@ -86,6 +86,30 @@ export function dampedOffset(travel: number, trackWidth: number): number {
 }
 
 /**
+ * The horizontal translation a CSS transform carries, or undefined when it
+ * carries none this can resolve.
+ *
+ * DOMMatrix reads `matrix()`, `matrix3d()` and `translate3d()` alike, which
+ * matters because a browser reports a 3D transform as the 3D matrix - matching
+ * one shape by hand would miss the very form the track is written in. A
+ * `calc()` target it cannot resolve is undefined rather than zero, so the
+ * caller can fall back rather than believe the sheet is centred.
+ */
+export function translationOf(transform: string): number | undefined {
+  if (!transform || transform === 'none') return undefined
+  // A percentage or calc() resolves only against a layout box, which a matrix
+  // has none of. Engines disagree on what they do with one - some throw, some
+  // quietly answer zero - and zero is the one wrong answer here, because it
+  // reads as "centred" for a sheet that is nowhere near centred.
+  if (/%|calc\(/.test(transform)) return undefined
+  try {
+    return new DOMMatrixReadOnly(transform).m41
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Decides which way a drag from `start` to `end` turns the page.
  *
  * `viewportWidth` is passed in rather than read off `window` so the rule stays

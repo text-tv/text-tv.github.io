@@ -68,7 +68,7 @@ export function App() {
       <FreshnessBar updatedAt={updatedAt} stale={stale} pending={result === undefined} />
       <main className="content" ref={content}>
         <div
-          className="swipe-track"
+          className={dragging ? 'swipe-track swipe-track--dragging' : 'swipe-track'}
           ref={track}
           style={{ '--swipe-gutter': `${SWIPE_GUTTER_PX}px` } as React.CSSProperties}
         >

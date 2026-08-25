@@ -4,6 +4,7 @@ import {
   lockAxis,
   smoothVelocity,
   startsInGutter,
+  translationOf,
   SWIPE_AXIS_LOCK,
   SWIPE_AXIS_RATIO,
   SWIPE_DAMP_CEILING,
@@ -153,5 +154,34 @@ describe('swipeDirection med fart', () => {
     expect(SWIPE_GUTTER_PX).toBe(14)
     expect(SWIPE_DAMP_RATIO).toBe(0.42)
     expect(SWIPE_DAMP_CEILING).toBe(0.16)
+  })
+})
+
+describe('läsa av var arket står', () => {
+  // R17
+  it('läser den upplösta matrisen en webbläsare rapporterar mitt i en övergång', () => {
+    expect(translationOf('matrix(1, 0, 0, 1, -40, 0)')).toBe(-40)
+  })
+
+  // R17
+  it('läser matrix3d, som är formen en translate3d faktiskt rapporteras i', () => {
+    expect(translationOf('matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, -40,0,0,1)')).toBe(-40)
+  })
+
+  // R17
+  it('läser det som skrivits, innan någon övergång hunnit lösa upp det', () => {
+    expect(translationOf('translate3d(-40px, 0, 0)')).toBe(-40)
+  })
+
+  /**
+   * The calc() commit target is the one form that cannot be resolved without a
+   * layout. Saying "no offset" rather than "zero" is what lets the caller fall
+   * back to the written value instead of believing the sheet is centred.
+   */
+  it('vet skillnaden mellan noll och inget svar', () => {
+    expect(translationOf('translate3d(0px, 0, 0)')).toBe(0)
+    expect(translationOf('translate3d(calc(-100% - 14px), 0, 0)')).toBeUndefined()
+    expect(translationOf('none')).toBeUndefined()
+    expect(translationOf('')).toBeUndefined()
   })
 })

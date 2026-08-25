@@ -164,6 +164,14 @@ body {
 .swipe-track {
   position: absolute;
   inset: 0;
+}
+
+/*
+ * A compositing layer costs memory for as long as it exists, and the track is
+ * only ever transformed between the axis lock and the end of a gesture. Ask
+ * for one over that window rather than for the whole session.
+ */
+.swipe-track--dragging {
   will-change: transform;
 }
 

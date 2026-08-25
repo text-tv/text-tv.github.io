@@ -108,12 +108,15 @@ export function useTextTv(): TextTvState {
   const own = neighboursOf(found)
   if (own) held.current = { prev: own.prev, next: own.next }
 
-  useEffect(
-    () => () => {
+  // Re-armed on mount, not only cleared on unmount: StrictMode mounts twice,
+  // and a ref left false after the first teardown would silence every
+  // prefetch for the rest of the session.
+  useEffect(() => {
+    live.current = true
+    return () => {
       live.current = false
-    },
-    [],
-  )
+    }
+  }, [])
 
   useEffect(() => {
     const onHashChange = () => setPageNumber(hashPage() ?? HOME_PAGE)
