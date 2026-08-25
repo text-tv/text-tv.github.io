@@ -27,7 +27,12 @@ export function PageSheet({ pageNumber, result, place, onNavigate, onRetry }: Pr
       // being read is reachable.
       inert={place !== 'current'}
     >
-      {result === undefined && <p className="message__text">Hämtar…</p>}
+      {result === undefined && (
+        <div className="loading">
+          <p className="loading__page">{pageNumber}</p>
+          <p className="message__text loading__status">Hämtar…</p>
+        </div>
+      )}
       {result?.kind === 'page' && <PageView page={result} onNavigate={onNavigate} />}
       {result?.kind === 'not-broadcast' && <NotBroadcast result={result} onNavigate={onNavigate} />}
       {result?.kind === 'error' && <TransportError result={result} onRetry={onRetry} />}

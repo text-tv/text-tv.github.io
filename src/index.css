@@ -503,6 +503,28 @@ body {
   }
 }
 
+/*
+ * A page still on its way: its number where the frame's header row lands, and
+ * the word the bar already uses for the same wait. It fills in behind, with
+ * nothing to animate - a skeleton would only draw attention to the gap.
+ */
+.loading {
+  max-width: var(--frame-max);
+  margin: 0 auto;
+  padding: 12px 0;
+}
+
+.loading__page {
+  margin: 0;
+  padding-inline: 8px;
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.loading__status {
+  color: var(--dim);
+}
+
 /* Messages */
 
 .message {

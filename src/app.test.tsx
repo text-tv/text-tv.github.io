@@ -12,7 +12,16 @@ import {
   releaseFrameDecoding,
   releaseNewestFrame,
 } from './test/canvas'
-import { failNextFor, reframe, republish, stopFailing, takeOffAir } from './test/server'
+import {
+  failNextFor,
+  holdPage,
+  releasePage,
+  reframe,
+  republish,
+  requestedPages,
+  stopFailing,
+  takeOffAir,
+} from './test/server'
 
 /** The same clock format the freshness bar renders. */
 const shownAs = (iso: string) =>
@@ -1026,6 +1035,197 @@ describe('svepet följer fingret', () => {
 })
 
 
+describe('grannarna vid sidan om', () => {
+  const container = () => screen.getByRole('main')
+  const sheets = () => [...document.querySelectorAll<HTMLElement>('.swipe-sheet')]
+  const sheetFor = (pageNumber: string) =>
+    sheets().find((sheet) => sheet.dataset.page === pageNumber)!
+
+  const finger = {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 1,
+    pointerType: 'touch',
+    isPrimary: true,
+  }
+
+  /** One pointer event on a clock the test chooses; the flick rule is timestamps. */
+  const fire = (type: string, clientX: number, timeStamp: number) => {
+    const event = new PointerEvent(type, { ...finger, clientX, clientY: 300 })
+    Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+    container().dispatchEvent(event)
+  }
+
+  /** happy-dom runs no transitions, so the snap only ever ends by hand. */
+  const snapEnds = () => document.querySelector('.swipe-track')?.dispatchEvent(new Event('transitionend'))
+
+  /** Holds the finger out past the axis lock, so the neighbours are on screen. */
+  const dragOut = async (dx: number) => {
+    fire('pointerdown', 500, 0)
+    // A thousand milliseconds of travel is no flick: the lift below cancels.
+    fire('pointermove', 500 + dx, 1000)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+  }
+
+  const letGo = async () => {
+    fire('pointerup', 480, 1000)
+    snapEnds()
+    await waitFor(() => expect(sheets()).toHaveLength(1))
+  }
+
+  /** A flick, all the way through the swap. */
+  const swipe = (dx: number) => {
+    fire('pointerdown', 500, 0)
+    fire('pointermove', 500 + dx, 50)
+    fire('pointerup', 500 + dx, 50)
+    snapEnds()
+  }
+
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
+
+  // R11
+  it('hämtar båda grannarna när sidan har landat', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    await waitFor(() => expect(requestedPages()).toHaveLength(3))
+    await settled()
+    expect([...requestedPages()].sort()).toEqual(['102', '104', '105'])
+  })
+
+  // R11
+  it('hämtar bara den granne som finns när sidan är den första', async () => {
+    openOn('100')
+    await drawnFrames(1)
+
+    // 100 has nothing before it, so there is one neighbour to fetch, not two.
+    await settled()
+    expect([...requestedPages()].sort()).toEqual(['100', '101'])
+  })
+
+  // R11
+  it('målar en granne som redan ligger i lagringen utan att hämta den', async () => {
+    const { unmount } = openOn('104')
+    await drawnFrames(1)
+    await settled()
+    unmount()
+
+    // 104 was stored as the page the reader read; now it is 105's neighbour.
+    const before = requestedPages().length
+    openOn('105')
+    await drawnFrames(1)
+    await settled()
+
+    expect(requestedPages().slice(before)).not.toContain('104')
+    await dragOut(20)
+    expect(within(sheetFor('104')).queryByText('Hämtar…')).not.toBeInTheDocument()
+  })
+
+  // R10
+  it('visar sidnumret och Hämtar… för en granne den ännu inte känner', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+
+    await dragOut(-20)
+    expect(within(sheetFor('105')).getByText('105')).toBeInTheDocument()
+    expect(within(sheetFor('105')).getByText('Hämtar…')).toBeInTheDocument()
+
+    releasePage('105')
+
+    await waitFor(() => expect(within(sheetFor('105')).getAllByRole('group')).toHaveLength(1))
+    expect(within(sheetFor('105')).queryByText('Hämtar…')).not.toBeInTheDocument()
+  })
+
+  // R10
+  it('visar sidan man just lämnade som föregående ark, inte Hämtar…', async () => {
+    openOn('104')
+    await drawnFrames(1)
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+
+    await dragOut(20)
+    expect(within(sheetFor('104')).queryByText('Hämtar…')).not.toBeInTheDocument()
+    expect(within(sheetFor('104')).getAllByRole('group')).toHaveLength(1)
+  })
+
+  // R11
+  it('hämtar en sida till framåt efter ett byte, inte åt båda hållen', async () => {
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toHaveLength(3))
+    const before = requestedPages().length
+
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await settled()
+
+    // 105 itself and the page beyond it. 103, two deep the other way, is not
+    // asked for: 104's payload is the only thing that names it.
+    expect(requestedPages().slice(before).sort()).toEqual(['105', '106'])
+  })
+
+  // R11
+  it('hämtar inte om grannen man kom ifrån när man sveper tillbaka', async () => {
+    openOn('104')
+    await drawnFrames(1)
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await settled()
+
+    const before = requestedPages().length
+    swipe(120)
+    await currentPage('104')
+    await drawnFrames(1)
+    await settled()
+
+    expect(requestedPages().slice(before)).toContain('104')
+    expect(requestedPages().slice(before)).not.toContain('105')
+  })
+
+  // R19
+  it('behåller inte en granne som inte gick att hämta', async () => {
+    failNextFor('105')
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toContain('105'))
+    await settled()
+
+    await dragOut(-20)
+    expect(within(sheetFor('105')).getByText('Hämtar…')).toBeInTheDocument()
+    await letGo()
+
+    // Committing onto it is an ordinary load, so the failure surfaces as the
+    // page's own error rather than as a sheet stuck on "Hämtar…".
+    swipe(-120)
+    expect(await screen.findByText('Kunde inte hämta sidan')).toBeInTheDocument()
+  })
+
+  // R12, R13
+  it('behåller pilarna och låter sig svepas medan nästa sida hämtas', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+    expect(screen.getByLabelText('Föregående sida')).toBeEnabled()
+    expect(screen.getByLabelText('Nästa sida')).toBeEnabled()
+
+    swipe(-120)
+    await currentPage('105')
+
+    expect(screen.getAllByText('Hämtar…').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText('Föregående sida')).toBeEnabled()
+    expect(screen.getByLabelText('Nästa sida')).toBeEnabled()
+
+    // And the gesture does not wait for the page: 102 is where 104's own
+    // neighbours still point.
+    swipe(120)
+    await currentPage('102')
+  })
+})
+
 describe('sidor som inte går att visa', () => {
   // AE6
   it('säger "Sidan ej i sändning" och erbjuder grannarna', async () => {
@@ -1219,6 +1419,23 @@ describe('när lagringen är full', () => {
     await drawnFrames(14, 10000)
     expect(attempted).toContain('texttv:page:331')
     expect(entries.has('texttv:page:331')).toBe(false)
+  })
+
+  // R18
+  it('offrar ingen lagrad sida för en granne appen hämtar i förväg', async () => {
+    // 104 is 105's neighbour and the only page here the app fetches on its own.
+    const pages = ['101', '102', '103', '106', '107', '108', '109', '110']
+    const { attempted, entries } = useFullStore(cached(pages))
+    openOn('105')
+
+    await drawnFrames(1)
+    await waitFor(() => expect(attempted).toContain('texttv:page:104'))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    // Three evictions is the whole budget of the page the reader asked for.
+    // The prefetch gets none of it and gives up instead.
+    const survivors = pages.filter((p) => entries.has(`texttv:page:${p}`))
+    expect(survivors).toHaveLength(pages.length - 3)
   })
 
   it('offrar inte hela cachen för en sida som ändå inte får plats', async () => {

@@ -27,7 +27,8 @@ const SHEETS = ['a', 'b', 'c']
 const motionAllowed = () => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 export function App() {
-  const { pageNumber, result, stale, updatedAt, navigate, reload } = useTextTv()
+  const { pageNumber, result, prev, next, contentFor, stale, updatedAt, navigate, reload } =
+    useTextTv()
   useVisualViewport()
   const content = useRef<HTMLElement>(null)
   const track = useRef<HTMLDivElement>(null)
@@ -36,15 +37,13 @@ export function App() {
   const [dragging, setDragging] = useState(false)
   /** Which of SHEETS is the current page; a commit rotates it. */
   const [slot, setSlot] = useState(0)
-  // Both a page and a not-broadcast result carry the neighbours the arrows use.
-  const neighbours = result?.kind === 'error' ? undefined : result
 
   useSwipeNavigation({
     container: content,
     track,
     pageNumber,
-    prev: neighbours?.prev,
-    next: neighbours?.next,
+    prev,
+    next,
     motion,
     navigate,
     onDragging: setDragging,
@@ -60,7 +59,6 @@ export function App() {
     { id: sheetAt(0), pageNumber, place: 'current' },
   ]
   if (dragging) {
-    const { prev, next } = neighbours ?? {}
     if (prev) sheets.push({ id: sheetAt(-1), pageNumber: prev, place: 'prev' })
     if (next) sheets.push({ id: sheetAt(1), pageNumber: next, place: 'next' })
   }
@@ -78,7 +76,7 @@ export function App() {
             <PageSheet
               key={sheet.id}
               pageNumber={sheet.pageNumber}
-              result={sheet.place === 'current' ? result : undefined}
+              result={contentFor(sheet.pageNumber)}
               place={sheet.place}
               onNavigate={navigate}
               onRetry={reload}
@@ -89,8 +87,8 @@ export function App() {
       <QuickLinks current={pageNumber} onNavigate={navigate} />
       <BottomBar
         pageNumber={pageNumber}
-        prev={neighbours?.prev}
-        next={neighbours?.next}
+        prev={prev}
+        next={next}
         onNavigate={navigate}
         onHome={() => navigate(HOME_PAGE)}
       />

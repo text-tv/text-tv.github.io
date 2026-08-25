@@ -53,6 +53,25 @@ export const reframe = (pageNumber: string, source: string): void => {
   })
 }
 
+/** Every page the app has asked the network for, oldest first. */
+const requested: string[] = []
+
+export const requestedPages = (): string[] => [...requested]
+
+/** Responses the test is holding back, so a page can be caught mid-flight. */
+const holding = new Map<string, () => void>()
+const held = new Map<string, Promise<void>>()
+
+export const holdPage = (pageNumber: string): void => {
+  held.set(pageNumber, new Promise((resolve) => holding.set(pageNumber, resolve)))
+}
+
+export const releasePage = (pageNumber: string): void => {
+  holding.get(pageNumber)?.()
+  holding.delete(pageNumber)
+  held.delete(pageNumber)
+}
+
 export const failNextFor = (pageNumber: string): void => {
   failing.add(pageNumber)
 }
@@ -61,8 +80,10 @@ export const stopFailing = (pageNumber: string): void => {
 }
 
 export const server = setupServer(
-  http.get('*/api/:page', ({ params }) => {
+  http.get('*/api/:page', async ({ params }) => {
     const page = String(params.page)
+    requested.push(page)
+    await held.get(page)
     if (failing.has(page)) return HttpResponse.error()
     const gone = offAir.get(page)
     if (gone) {
@@ -80,6 +101,8 @@ export const server = setupServer(
 )
 
 export const resetFakes = (): void => {
+  for (const page of [...holding.keys()]) releasePage(page)
+  requested.length = 0
   failing.clear()
   offAir.clear()
   for (const page of FIXTURE_PAGES) captured.set(page, rawFixture(page))

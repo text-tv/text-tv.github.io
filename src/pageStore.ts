@@ -76,8 +76,19 @@ export function readPage(pageNumber: PageNumber): StoredPage | undefined {
   return stored?.result?.kind === 'page' ? stored : undefined
 }
 
+/**
+ * `visited` is a page the reader asked for; `prefetch` is one the app guessed
+ * at. Only the first may evict.
+ */
+export type WriteMode = 'visited' | 'prefetch'
+
 /** Evicts least-recently-fetched pages until the write fits, then gives up. */
-export function writePage(pageNumber: PageNumber, result: PageResult, at: number): void {
+export function writePage(
+  pageNumber: PageNumber,
+  result: PageResult,
+  at: number,
+  mode: WriteMode = 'visited',
+): void {
   const store = storage()
   if (!store) return
   const entry = JSON.stringify({ result, fetchedAt: at } satisfies StoredPage)
@@ -90,6 +101,9 @@ export function writePage(pageNumber: PageNumber, result: PageResult, at: number
       writeFetchedIndex(store, index)
       return
     } catch {
+      // A prefetched page is a convenience; a stored one is the offline story.
+      // Never trade the second for the first, and leave any older copy alone.
+      if (mode === 'prefetch') return
       const oldest = evicted < MAX_EVICTIONS ? oldestPage(index, pageNumber) : undefined
       if (!oldest) {
         // Out of room, or out of patience. Keep what is already cached and go
