@@ -47,6 +47,25 @@ const drawnFrames = async (count: number, timeout?: number) => {
   return frames()
 }
 
+/**
+ * The frame is 520x400. happy-dom has no layout, so the hotspot layer is
+ * given a real rect; without one the capture handler bails out and the
+ * click falls through to whichever button the DOM happens to hit, which is
+ * exactly the resolution this test exists to pin.
+ */
+const giveTheFrameALayout = (scale = 1) => {
+  const layer = document.querySelector('.hotspots') as HTMLElement
+  layer.getBoundingClientRect = () =>
+    ({ x: 0, y: 0, left: 0, top: 0, width: 520 * scale, height: 400 * scale }) as DOMRect
+  return layer
+}
+
+const tapAt = (layer: HTMLElement, clientX: number, clientY: number) => {
+  layer.dispatchEvent(
+    new MouseEvent('click', { bubbles: true, cancelable: true, clientX, clientY }),
+  )
+}
+
 describe('läsa en sida', () => {
   it('visar sida 100 som riktig text, inte som bild', async () => {
     openOn('100')
@@ -195,25 +214,6 @@ describe('länkar i bilden', () => {
 })
 
 describe('överlappande länkar', () => {
-  /**
-   * The frame is 520x400. happy-dom has no layout, so the hotspot layer is
-   * given a real rect; without one the capture handler bails out and the
-   * click falls through to whichever button the DOM happens to hit, which is
-   * exactly the resolution this test exists to pin.
-   */
-  const giveTheFrameALayout = (scale = 1) => {
-    const layer = document.querySelector('.hotspots') as HTMLElement
-    layer.getBoundingClientRect = () =>
-      ({ x: 0, y: 0, left: 0, top: 0, width: 520 * scale, height: 400 * scale }) as DOMRect
-    return layer
-  }
-
-  const tapAt = (layer: HTMLElement, clientX: number, clientY: number) => {
-    layer.dispatchEvent(
-      new MouseEvent('click', { bubbles: true, cancelable: true, clientX, clientY }),
-    )
-  }
-
   it('väljer länken närmast fingret, inte den som råkar ligga överst', async () => {
     openOn('100')
     await drawnFrames(1)
@@ -404,6 +404,211 @@ describe('knapparna längst ned', () => {
     expect(input).toHaveAttribute('maxlength', '3')
   })
 })
+
+describe('svep mellan sidor', () => {
+  /**
+   * A finger drag, dispatched raw the way `tapAt` dispatches a tap: happy-dom
+   * synthesises nothing from a pointer sequence, so every event the gesture
+   * needs is spelled out here.
+   */
+  const swipeFrom = (
+    element: Element,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    pointerType = 'touch',
+  ) => {
+    const shared = { bubbles: true, cancelable: true, pointerId: 1, pointerType, isPrimary: true }
+    element.dispatchEvent(
+      new PointerEvent('pointerdown', { ...shared, clientX: fromX, clientY: fromY }),
+    )
+    element.dispatchEvent(
+      new PointerEvent('pointermove', { ...shared, clientX: toX, clientY: toY }),
+    )
+    element.dispatchEvent(new PointerEvent('pointerup', { ...shared, clientX: toX, clientY: toY }))
+  }
+
+  const container = () => screen.getByRole('main')
+
+  /** Only the gutter test moves the viewport width; the rest keep happy-dom's. */
+  const realWidth = window.innerWidth
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: realWidth, configurable: true })
+  })
+
+  // R1
+  it('går framåt när fingret dras från höger till vänster', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    swipeFrom(container(), 500, 300, 380, 300)
+
+    await currentPage('105')
+  })
+
+  // R1, R2
+  it('går bakåt när fingret dras från vänster till höger', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    swipeFrom(container(), 500, 300, 620, 300)
+
+    // 102 has no fixture, so the page bar is the proof the navigation happened.
+    await currentPage('102')
+  })
+
+  // R2
+  it('sveper vidare från en sida som inte sänds', async () => {
+    openOn('200')
+    await screen.findByText('Sidan ej i sändning')
+
+    swipeFrom(container(), 500, 300, 380, 300)
+
+    await currentPage('250')
+  })
+
+  // R3
+  it('stannar kvar när sidan saknar granne åt det hållet', async () => {
+    openOn('100')
+    await drawnFrames(1)
+
+    // Page 100 is the first page: nothing precedes it.
+    swipeFrom(container(), 500, 300, 620, 300)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('100')
+  })
+
+  // R4
+  it('tar bakåtgesten tillbaka till sidan man svepte från', async () => {
+    openOn('104')
+    await currentPage('104')
+    swipeFrom(container(), 500, 300, 380, 300)
+    await currentPage('105')
+
+    window.history.back()
+
+    await currentPage('104')
+  })
+
+  // R5
+  it('bryr sig inte om att musen dras åt sidan', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    swipeFrom(container(), 500, 300, 380, 300, 'mouse')
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R6
+  it('avbryter gesten när pekaren tas ifrån appen', async () => {
+    openOn('104')
+    await currentPage('104')
+    const main = container()
+    const shared = {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: 'touch',
+      isPrimary: true,
+    }
+
+    main.dispatchEvent(new PointerEvent('pointerdown', { ...shared, clientX: 500, clientY: 300 }))
+    main.dispatchEvent(new PointerEvent('pointermove', { ...shared, clientX: 380, clientY: 300 }))
+    main.dispatchEvent(new PointerEvent('pointercancel', { ...shared, clientX: 380, clientY: 300 }))
+    main.dispatchEvent(new PointerEvent('pointerup', { ...shared, clientX: 380, clientY: 300 }))
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R6
+  it('avbryter gesten när ett andra finger läggs på', async () => {
+    openOn('104')
+    await currentPage('104')
+    const main = container()
+    const first = {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: 'touch',
+      isPrimary: true,
+    }
+
+    main.dispatchEvent(new PointerEvent('pointerdown', { ...first, clientX: 500, clientY: 300 }))
+    // A real second finger is a different pointer, and not the primary one.
+    main.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 2,
+        pointerType: 'touch',
+        isPrimary: false,
+        clientX: 300,
+        clientY: 300,
+      }),
+    )
+    main.dispatchEvent(new PointerEvent('pointermove', { ...first, clientX: 380, clientY: 300 }))
+    main.dispatchEvent(new PointerEvent('pointerup', { ...first, clientX: 380, clientY: 300 }))
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R7
+  it('lämnar kantremsan åt systemets egen bakåtgest', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+    openOn('104')
+    await currentPage('104')
+
+    swipeFrom(container(), 20, 300, 200, 300)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R8
+  it('byter inte sida när fingret mest dras uppåt', async () => {
+    openOn('331')
+    await drawnFrames(14, 10000)
+
+    swipeFrom(container(), 500, 600, 420, 200)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('331')
+  })
+
+  // R9
+  it('byter inte sida när svepet sker på genvägsraden', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    swipeFrom(screen.getByLabelText('Genvägar'), 500, 300, 380, 300)
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R10
+  it('följer inte länken som svepet råkade sluta över', async () => {
+    openOn('100')
+    await drawnFrames(1)
+    const layer = giveTheFrameALayout()
+
+    // The drag ends on the printed 106, and the browser's follow-up click
+    // lands there too - the swipe must swallow it.
+    swipeFrom(container(), 340, 152, 240, 152)
+    tapAt(layer, 240, 152)
+
+    await currentPage('101')
+    expect(screen.getByLabelText('Aktuell sida')).not.toHaveTextContent('106')
+  })
+})
+
 
 describe('sidor som inte går att visa', () => {
   // AE6

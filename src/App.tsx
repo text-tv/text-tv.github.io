@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { BottomBar } from './components/BottomBar'
 import { FreshnessBar } from './components/FreshnessBar'
 import { NotBroadcast } from './components/NotBroadcast'
@@ -5,18 +6,22 @@ import { PageView } from './components/PageView'
 import { QuickLinks } from './components/QuickLinks'
 import { TransportError } from './components/TransportError'
 import { HOME_PAGE, useTextTv } from './useTextTv'
+import { useSwipeNavigation } from './useSwipeNavigation'
 import { useVisualViewport } from './useVisualViewport'
 
 export function App() {
   const { pageNumber, result, stale, updatedAt, navigate, reload } = useTextTv()
   useVisualViewport()
+  const content = useRef<HTMLElement>(null)
   // Both a page and a not-broadcast result carry the neighbours the arrows use.
   const neighbours = result?.kind === 'error' ? undefined : result
+
+  useSwipeNavigation(content, neighbours?.prev, neighbours?.next, navigate)
 
   return (
     <div className="app">
       <FreshnessBar updatedAt={updatedAt} stale={stale} pending={result === undefined} />
-      <main className="content">
+      <main className="content" ref={content}>
         {result === undefined && <p className="message__text">Hämtar…</p>}
         {result?.kind === 'page' && <PageView page={result} onNavigate={navigate} />}
         {result?.kind === 'not-broadcast' && (
