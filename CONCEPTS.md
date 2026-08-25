@@ -30,4 +30,12 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 **Edge gutter** — the strip along each side of the screen where the app declines to read a sideways drag as a page change, because the operating system arms its own back gesture there. The app cannot cancel that gesture, so the gutter is how the two are kept from competing: inside it the system wins by default, outside it the drag is the reader's.
 
+**Snap** — the short animation that ends a sideways drag once the finger lifts: out to the neighbour when the gesture committed, back to centre when it did not. It is the only part of the gesture the app does not drive frame by frame.
+
+A snap is interruptible. A finger landing while one is running takes it over — the sheet stays where it is and the page change the snap was carrying is abandoned — so nothing may treat a snap as certain to complete. The page change happens when the snap ends, not when the finger lifts.
+
 **Sheet** — one page as a single movable surface. Reading gestures act on sheets rather than on pages: a sideways drag slides the current sheet aside and the neighbouring one in, separated by a black gutter so the two never read as one continuous surface. A page is what is being read; a sheet is the thing that moves while the reader changes which page that is.
+
+## Flagged ambiguities
+
+- "Gutter" named two different things once sheets could move. The **edge gutter** is the dead strip at the screen's sides where the app declines the drag to the operating system; the gap between two sheets is just the gutter, and it is a matter of drawing rather than of gestures. Neither is the other, and the qualified name is the one to use when both are in play.
