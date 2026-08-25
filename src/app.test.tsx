@@ -607,6 +607,22 @@ describe('svep mellan sidor', () => {
     await currentPage('101')
     expect(screen.getByLabelText('Aktuell sida')).not.toHaveTextContent('106')
   })
+
+  // R10
+  it('äter inte en knapptryckning som kommer strax efter svepet', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    // The swallow is armed for a moment after every swipe. It must let go of
+    // anything outside the frame, or the bar stops answering right when the
+    // reader reaches for it.
+    swipeFrom(container(), 500, 300, 380, 300)
+    await currentPage('105')
+
+    await userEvent.click(screen.getByLabelText('Föregående sida'))
+
+    await currentPage('104')
+  })
 })
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import type { PageNumber } from './api.types'
 import { CLICK_SWALLOW_MS, swipeDirection, type Point } from './swipe'
 
@@ -31,7 +31,12 @@ export function useSwipeNavigation(
    * current instead.
    */
   const latest = useRef({ prev, next, navigate })
-  latest.current = { prev, next, navigate }
+  // Not written during render, which would break React's purity contract, and
+  // not in a passive effect either: those flush asynchronously, so a swipe made
+  // right after a page loaded could still read the previous page's neighbours.
+  useLayoutEffect(() => {
+    latest.current = { prev, next, navigate }
+  })
 
   useEffect(() => {
     const element = container.current
@@ -52,6 +57,10 @@ export function useSwipeNavigation(
     const armSwallow = () => {
       clearSwallow()
       const listener = (event: MouseEvent) => {
+        // Only the click the finger itself left behind, which lands inside the
+        // element the drag happened on. Swallowing whatever came next would eat
+        // a deliberate tap on the bar or the rail made within the window below.
+        if (!element.contains(event.target as Node)) return
         event.stopPropagation()
         event.preventDefault()
         clearSwallow()
