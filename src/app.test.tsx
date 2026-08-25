@@ -580,6 +580,12 @@ describe('svep mellan sidor', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('331')
+
+    // The same page, swept sideways: proves the gesture was live here all
+    // along, and that the drag above was turned down for leaning too much.
+    swipeFrom(container(), 500, 600, 380, 600)
+
+    await currentPage('332')
   })
 
   // R9
