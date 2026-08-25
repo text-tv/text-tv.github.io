@@ -146,8 +146,9 @@ body {
 }
 
 /*
- * The only scroll container in the app. min-height: 0 keeps the flex item from
- * growing the shell instead of scrolling itself.
+ * The window onto the track. min-height: 0 keeps the flex item from growing the
+ * shell instead of holding its own height, and the overflow clips the
+ * neighbouring sheets waiting on either side.
  *
  * No gutter: a frame is width-constrained, so every pixel taken off the sides
  * comes straight out of the type. The messages carry their own padding.
@@ -155,7 +156,41 @@ body {
 .content {
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Carries the whole gesture. The hook writes its transform; nothing here does. */
+.swipe-track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+/*
+ * A page's own box, and the only scroll container in the app - the scroll sits
+ * here rather than on .content so a neighbour is never left hanging above the
+ * viewport on a page the reader has scrolled down. The hairlines are the rail's,
+ * and read the sheet's edge against the black gutter between two of them.
+ */
+.swipe-sheet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
+  border-left: 1px solid #1c1c1c;
+  border-right: 1px solid #1c1c1c;
+}
+
+/* One content width plus the gutter out, on either side. */
+.swipe-sheet--prev {
+  left: calc(-100% - var(--swipe-gutter));
+}
+
+.swipe-sheet--next {
+  left: calc(100% + var(--swipe-gutter));
 }
 
 .pages {

@@ -427,6 +427,9 @@ describe('svep mellan sidor', () => {
       new PointerEvent('pointermove', { ...shared, clientX: toX, clientY: toY }),
     )
     element.dispatchEvent(new PointerEvent('pointerup', { ...shared, clientX: toX, clientY: toY }))
+    // The snap the lift starts is where the page change happens, and happy-dom
+    // runs no transitions, so its end is dispatched here too.
+    document.querySelector('.swipe-track')?.dispatchEvent(new Event('transitionend'))
   }
 
   const container = () => screen.getByRole('main')
@@ -628,6 +631,397 @@ describe('svep mellan sidor', () => {
     await userEvent.click(screen.getByLabelText('Föregående sida'))
 
     await currentPage('104')
+  })
+})
+
+describe('svepet följer fingret', () => {
+  const container = () => screen.getByRole('main')
+  const track = () => document.querySelector('.swipe-track') as HTMLElement
+  const sheets = () => [...document.querySelectorAll<HTMLElement>('.swipe-sheet')]
+
+  const finger = {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 1,
+    pointerType: 'touch',
+    isPrimary: true,
+  }
+
+  /**
+   * One pointer event, on a clock the test chooses. `timeStamp` is read-only on
+   * the constructor, and the flick rule is nothing but timestamps.
+   */
+  const fire = (
+    target: EventTarget,
+    type: string,
+    clientX: number,
+    clientY: number,
+    timeStamp?: number,
+  ) => {
+    const event = new PointerEvent(type, { ...finger, clientX, clientY })
+    if (timeStamp !== undefined) Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+    target.dispatchEvent(event)
+  }
+
+  /** happy-dom runs no transitions, so the snap only ever ends by hand. */
+  const snapEnds = () => track().dispatchEvent(new Event('transitionend'))
+
+  /** No layout either: the damping ceiling needs a width from somewhere. */
+  const trackIs = (width: number) =>
+    Object.defineProperty(track(), 'clientWidth', { value: width, configurable: true })
+
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
+
+  const realMatchMedia = window.matchMedia
+  const realWidth = window.innerWidth
+
+  afterEach(() => {
+    window.matchMedia = realMatchMedia
+    Object.defineProperty(window, 'innerWidth', { value: realWidth, configurable: true })
+  })
+
+  const asksForLessMotion = () => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+  }
+
+  // R20
+  it('håller en enda sida i dokumentet när ingen drar i den', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    expect(sheets()).toHaveLength(1)
+  })
+
+  // R20
+  it('håller en enda sida även när den har fjorton delsidor', async () => {
+    openOn('331')
+    await drawnFrames(14, 10000)
+
+    expect(sheets()).toHaveLength(1)
+  })
+
+  // R20, AE6
+  it('påstår inte att den hämtar en granne på en färdig sida', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    expect(screen.queryByText('Hämtar…')).not.toBeInTheDocument()
+  })
+
+  // R20
+  it('monterar grannarna vid låsningen och plockar bort dem när gesten är slut', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    expect(sheets()).toHaveLength(1)
+
+    // Slow: a thousand milliseconds of travel is no flick, so this one cancels
+    // and the gesture ends without a page change to confuse the count.
+    fire(container(), 'pointermove', 480, 300, 1000)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+
+    fire(container(), 'pointerup', 480, 300, 1000)
+    snapEnds()
+
+    await waitFor(() => expect(sheets()).toHaveLength(1))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R21
+  it('ritar den aktuella sidan först och lämnar grannarna utanför', async () => {
+    // 104 has a neighbour on each side, so the sheet that comes first is a
+    // decision rather than the only candidate.
+    openOn('104')
+    await drawnFrames(1)
+    giveTheFrameALayout()
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 480, 300, 1000)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+
+    const [current, ...neighbours] = sheets()
+    expect(current).toHaveAttribute('data-page', '104')
+    expect(current).not.toHaveAttribute('inert')
+    for (const sheet of neighbours) expect(sheet).toHaveAttribute('inert')
+    // The hotspot tests stub the first .hotspots in the document; it has to be
+    // the page the reader is looking at.
+    expect(current).toContainElement(document.querySelector('.hotspots'))
+  })
+
+  // R16
+  it('monterar ingen granne när rörelse är bortvald', async () => {
+    asksForLessMotion()
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+
+    await settled()
+    expect(sheets()).toHaveLength(1)
+    expect(track().style.transform).toBe('')
+  })
+
+  // R16
+  it('byter ändå sida utan att flytta arket när rörelse är bortvald', async () => {
+    asksForLessMotion()
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    fire(container(), 'pointerup', 380, 300, 50)
+
+    // No snap to end: the page changes at the lift, exactly as it did before
+    // the track existed.
+    await currentPage('105')
+    expect(track().style.transform).toBe('')
+  })
+
+  // R1
+  it('flyttar arket exakt lika långt som fingret', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 460, 300, 50)
+
+    expect(track().style.transform).toBe('translate3d(-40px, 0, 0)')
+  })
+
+  // R5
+  it('dämpar rörelsen där sidorna tar slut', async () => {
+    openOn('100')
+    await drawnFrames(1)
+    trackIs(390)
+
+    // 100 is the first page, so this drag has nowhere to go: 0.42 of the
+    // finger's travel, well under the 62px sixth of the track.
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 600, 300, 50)
+
+    expect(track().style.transform).toBe('translate3d(42px, 0, 0)')
+  })
+
+  // R15
+  it('rör inte arket sedan gesten låst sig lodrätt', async () => {
+    openOn('331')
+    await drawnFrames(14, 10000)
+
+    fire(container(), 'pointerdown', 500, 600, 0)
+    fire(container(), 'pointermove', 480, 200, 50)
+    // Sideways after the lock is still a scroll: the axis is decided once.
+    fire(container(), 'pointermove', 300, 200, 100)
+
+    expect(track().style.transform).toBe('')
+    await settled()
+    expect(sheets()).toHaveLength(1)
+  })
+
+  // R14
+  it('rör inte arket när greppet börjar i kantremsan', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 20, 300, 0)
+    fire(container(), 'pointermove', 200, 300, 50)
+
+    expect(track().style.transform).toBe('')
+  })
+
+  // R8, R9
+  it('låter arket ligga kvar ute tills den nya sidan har renderats', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    fire(container(), 'pointerup', 380, 300, 50)
+
+    const out = 'translate3d(calc(-100% - 14px), 0, 0)'
+    expect(track().style.transition).toBe('transform 260ms cubic-bezier(.32,.94,.28,1)')
+    expect(track().style.transform).toBe(out)
+
+    // The transition ending starts the page change; it does not move the sheet.
+    // The hash is applied a frame later, and a reset here would paint the
+    // outgoing page back at centre in between.
+    snapEnds()
+    expect(track().style.transform).toBe(out)
+
+    await currentPage('105')
+    expect(track().style.transform).toBe('')
+    expect(track().style.transition).toBe('')
+  })
+
+  // R9
+  it('lämnar över det aktuella facket till grannens egen ruta', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+    const incoming = sheets().find((sheet) => sheet.dataset.page === '105')
+
+    fire(container(), 'pointerup', 380, 300, 50)
+    snapEnds()
+    await currentPage('105')
+
+    // The very node the reader watched slide in, not a fresh one drawn over
+    // the page they just left.
+    expect(sheets()[0]).toBe(incoming)
+  })
+
+  // R8
+  it('fjädrar tillbaka till mitten när gesten inte räcker till', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 480, 300, 1000)
+    fire(container(), 'pointerup', 480, 300, 1000)
+
+    expect(track().style.transition).toBe('transform 300ms cubic-bezier(.22,1,.36,1)')
+    expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+
+    snapEnds()
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R17
+  it('låter ett nytt grepp ta över fjädringen och överge sidbytet', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    fire(container(), 'pointerup', 380, 300, 50)
+    expect(track().style.transition).not.toBe('')
+
+    fire(container(), 'pointerdown', 500, 300, 100)
+    expect(track().style.transition).toBe('')
+
+    fire(container(), 'pointermove', 490, 300, 1100)
+    expect(track().style.transform).toBe('translate3d(-10px, 0, 0)')
+
+    fire(container(), 'pointerup', 490, 300, 1100)
+    snapEnds()
+
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R14
+  it('fjädrar tillbaka när webbläsaren tar gesten', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    // On the window: a cancel arrives wherever the pointer was captured, which
+    // is not necessarily inside .content.
+    fire(window, 'pointercancel', 380, 300, 50)
+
+    expect(track().style.transition).toBe('transform 300ms cubic-bezier(.22,1,.36,1)')
+    expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+
+    snapEnds()
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R14
+  it('avslutar gesten när fingret lyfts utanför sidan', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    // The finger left over the bar, so .content never sees the lift and the
+    // sheet would be parked off centre for good.
+    fire(window, 'pointerup', 380, 300, 50)
+    snapEnds()
+
+    await currentPage('105')
+  })
+
+  // R14
+  it('avslutar gesten en enda gång, hur många kopior av lyftet som än kommer', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    // The browser took the gesture, and the lift that follows is the same one
+    // twice over - the element's copy and the window's. Neither may resurrect
+    // a gesture that has already been given up.
+    fire(container(), 'pointercancel', 380, 300, 50)
+    fire(window, 'pointerup', 380, 300, 50)
+    snapEnds()
+
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R14
+  it('fjädrar tillbaka när fönstret tappar fokus mitt i gesten', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    window.dispatchEvent(new Event('blur'))
+
+    expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+
+    snapEnds()
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  // R7
+  it('byter sida på en kort snärt', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    // Thirty pixels in twenty-four milliseconds: nowhere near the 60px the slow
+    // rule wants, but well past 0.5px/ms.
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 490, 300, 8)
+    fire(container(), 'pointermove', 480, 300, 16)
+    fire(container(), 'pointermove', 470, 300, 24)
+    fire(container(), 'pointerup', 470, 300, 24)
+    snapEnds()
+
+    await currentPage('105')
+  })
+
+  // R7
+  it('byter inte sida när samma sträcka dras långsamt', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 490, 300, 200)
+    fire(container(), 'pointermove', 480, 300, 400)
+    fire(container(), 'pointermove', 470, 300, 600)
+    fire(container(), 'pointerup', 470, 300, 600)
+    snapEnds()
+
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
   })
 })
 
