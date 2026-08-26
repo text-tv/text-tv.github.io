@@ -28,6 +28,20 @@ export const REVALIDATE_AFTER_MS = 60 * 1000
  * publication time, so age is disclosed rather than hidden by the wait.
  */
 export const ARRIVAL_WINDOW_MS = 60 * 60 * 1000
+/**
+ * The shortest time a refresh is allowed to *look* like it is running.
+ *
+ * A page already in the store, or one SVT answers for immediately, can settle
+ * inside a frame or two. Everything that reports a reader-initiated refresh -
+ * the cyan status, the dimmed refresh button, the parked pull strip - then
+ * appears and vanishes too fast to register, and the refresh reads as though
+ * nothing happened at all. Reported by a reader on exactly that.
+ *
+ * This never delays the request or the content: the fetch leaves immediately
+ * and the new page paints as soon as it lands. Only the flag saying a refresh
+ * is in flight is held, and only when the answer beat it.
+ */
+export const MIN_REFRESH_VISIBLE_MS = 500
 
 const hashPage = (): PageNumber | undefined => {
   const raw = window.location.hash.replace(/^#/, '')
@@ -115,6 +129,9 @@ export function useTextTv(): TextTvState {
    * `reloadCount`, so the count alone would name the next page's load as well.
    */
   const refreshWanted = useRef<{ count: number; page: PageNumber } | undefined>(undefined)
+  /** When the reader asked, so the flag can be held its minimum below. */
+  const askedAt = useRef(0)
+  const holding = useRef<number | undefined>(undefined)
   /** The page a fetch is currently in flight for, if any. */
   const inFlight = useRef<PageNumber | undefined>(undefined)
   /**
@@ -210,6 +227,26 @@ export function useTextTv(): TextTvState {
     writeLastVisited(pageNumber, Date.now())
   }, [pageNumber])
 
+  /**
+   * Lets the refresh flag down, but never sooner than the minimum above.
+   *
+   * Cancellation does not come through here: a reader who has left the page is
+   * not waiting on its refresh, and holding the flag would colour the status of
+   * the page they went to.
+   */
+  const settleRefresh = useCallback(() => {
+    const remaining = MIN_REFRESH_VISIBLE_MS - (Date.now() - askedAt.current)
+    if (remaining <= 0) {
+      setRefreshing(false)
+      return
+    }
+    window.clearTimeout(holding.current)
+    holding.current = window.setTimeout(() => setRefreshing(false), remaining)
+  }, [])
+
+  // A hold outliving the app would set state on a hook nobody is rendering.
+  useEffect(() => () => window.clearTimeout(holding.current), [])
+
   useEffect(() => {
     // Set by the cleanup below, so a slow response for a page the reader has
     // already left is dropped instead of overwriting the current one.
@@ -287,14 +324,14 @@ export function useTextTv(): TextTvState {
       // cached copy and the copy is forgotten rather than shown again later.
       if (fresh.kind === 'error' && painted) {
         setStale(false)
-        if (readerAsked) setRefreshing(false)
+        if (readerAsked) settleRefresh()
         return
       }
       arrived.current[pageNumber] = Date.now()
       setKnown((known) => ({ ...known, [pageNumber]: fresh }))
       setStale(false)
       if (readerAsked) {
-        setRefreshing(false)
+        settleRefresh()
         // Only a payload that can be compared licenses the marks. A page whose
         // sub-page count changed is not comparable: the frames no longer pair
         // up, and marking by position would invent differences.
@@ -323,10 +360,14 @@ export function useTextTv(): TextTvState {
       // cleaned up here is the one *before* the refresh, whose `readerAsked` is
       // false, so the flag the reader just raised survives. A page change
       // during the refresh does reach this with it true, and clears it.
-      if (readerAsked) setRefreshing(false)
+      if (readerAsked) {
+        // Straight down, not held: see settleRefresh.
+        window.clearTimeout(holding.current)
+        setRefreshing(false)
+      }
       if (inFlight.current === pageNumber) inFlight.current = undefined
     }
-  }, [pageNumber, reloadCount])
+  }, [pageNumber, reloadCount, settleRefresh])
 
   /**
    * Resolves one neighbour, from the store when it is there and from the
@@ -395,6 +436,8 @@ export function useTextTv(): TextTvState {
    * it here would pin the callback to a render.
    */
   const refresh = useCallback(() => {
+    window.clearTimeout(holding.current)
+    askedAt.current = Date.now()
     setRefreshing(true)
     setReloadCount((count) => {
       refreshWanted.current = { count: count + 1, page: pageNumber }

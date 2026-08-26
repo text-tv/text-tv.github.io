@@ -626,10 +626,13 @@ export function useSwipeNavigation({
     // the session. A pull cannot be live here anyway: one is locked out while a
     // refresh runs, and the pull that started this one ended before it asked.
     if (gesture.current?.pull) return
-    const strip = pullTrack.current
     // Nothing to close: the refresh came from the bar button, which never
     // opened the strip.
+
+    const strip = pullTrack.current
     if (!strip?.style.transform) return
+    // `refreshing` already carries its own minimum (see useTextTv), so by the
+    // time it falls the strip has been on screen long enough to have been read.
     strip.style.transition = motion ? PULL_CLOSE : ''
     strip.style.transform = ''
     if (!motion) latest.current.onPullState('idle')

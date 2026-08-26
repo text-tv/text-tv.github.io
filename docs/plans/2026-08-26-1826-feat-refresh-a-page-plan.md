@@ -598,6 +598,20 @@ Document review raised five decisions neither the design doc nor the repo answer
 
 ---
 
+## After the First Deploy
+
+The feature shipped and the reader reported the same thing about both entry points: on a quick connection it does not feel like an update happens. That is real and it is a consequence of the design being right about everything except duration. A page already in the store, or one SVT answers immediately, settles inside a frame or two — so the cyan status, the dimmed ↻ and the parked strip all appear and vanish faster than they can be read.
+
+Two changes, both reader-directed:
+
+- **`MIN_REFRESH_VISIBLE_MS` (500ms), in `useTextTv`.** A floor on how long `refreshing` stays true, not on when the fetch leaves: the request goes out on release and the new page paints the moment it lands. Placing it on the flag rather than on the strip is what makes one mechanism serve both entry points — everything that reports a refresh reads the same flag. Cancellation is exempt: a reader who has navigated away is not waiting, and holding the flag would colour the status of the page they went to.
+
+- **A spinner in the strip, overriding the design.** The design doc says *"No spinner. Teletext has no spinners, and the strip plus the status line already say the same thing twice."* The reasoning holds right up until the thing said twice is said for 80ms. Overridden on the reader's own report. It is the same ↻ glyph as the bar button, turning, so whichever way the reader asked, the thing that answers looks the same; `prefers-reduced-motion` keeps the glyph and drops the turning.
+
+The held half-second is what makes the spinner legible, and the spinner is what makes the held half-second read as work rather than as lag. Neither alone would have fixed the report.
+
+---
+
 ## What Review Changed
 
 Recorded because six of these would have shipped broken and are not visible in the final diff.

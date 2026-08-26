@@ -141,6 +141,11 @@ export function App() {
             fetch, and two voices would say the same thing twice.
           */}
           <div className={`pull-strip pull-strip--${pullState}`} aria-hidden="true">
+            {/*
+              The same glyph as the bar's refresh button, turning: whichever way
+              the reader asked, the thing that answers looks the same.
+            */}
+            {pullState === 'fetching' && <span className="pull-strip__spinner">↻</span>}
             <span className="pull-strip__label">{PULL_LABEL[pullState](fetchingPage)}</span>
             <span className="pull-strip__fill" ref={pullFill} />
           </div>

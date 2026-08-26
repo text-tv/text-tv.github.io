@@ -2296,6 +2296,76 @@ describe('uppdatera sidan', () => {
     })
   })
 
+  describe('att det känns som en uppdatering', () => {
+    // A page in hand can answer inside a frame or two, and everything that
+    // reports the refresh then appears and vanishes too fast to register.
+    it('visar knappens hämtning tillräckligt länge för att hinna läsas', async () => {
+      openOn('104')
+      await drawnFrames(1)
+
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(requestedPages().filter((p) => p === '104').length).toBe(2))
+
+      // The response has already landed; the signals are still up.
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      expect(status()).toHaveTextContent('Hämtar…')
+      expect(status()).toHaveClass('freshness__status--refreshing')
+      expect(refreshButton()).toHaveAttribute('aria-disabled', 'true')
+
+      await waitFor(() => expect(refreshButton()).not.toHaveAttribute('aria-disabled'), {
+        timeout: 2000,
+      })
+    })
+
+    it('håller remsan kvar efter en dragning fast sidan svarade genast', async () => {
+      openOn('104')
+      await drawnFrames(1)
+
+      pullBy(60)
+      await waitFor(() => expect(requestedPages().filter((p) => p === '104').length).toBe(2))
+
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      expect(strip()).toHaveTextContent('HÄMTAR 104…')
+      expect(pullTrack().style.transform).toBe('translate3d(0, 44px, 0)')
+      expect(document.querySelector('.pull-strip__spinner')).toBeInTheDocument()
+
+      await waitFor(() => expect(pullTrack().style.transform).toBe(''), { timeout: 2000 })
+    })
+
+    // The floor is on how long the answer is shown, never on asking for it.
+    it('fördröjer inte hämtningen, bara hur länge den syns', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      await userEvent.click(refreshButton())
+
+      // Well inside the hold: the request must already be gone.
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1), { timeout: 200 })
+    })
+
+    it('släpper flaggan direkt när läsaren lämnar sidan i stället för att hålla den', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(status()).toHaveTextContent('Hämtar…'))
+
+      window.location.hash = '100'
+      await currentPage('100')
+
+      // The timeout is the assertion. Effect cleanup runs after paint, so the
+      // flag cannot be down in the very render that shows 100 - but it must be
+      // down long before the hold would have expired, or the wait the reader
+      // walked away from colours the page they walked to. waitFor's default
+      // patience outlasts the hold and would pass either way.
+      await waitFor(() => expect(status()).not.toHaveClass('freshness__status--refreshing'), {
+        timeout: 150,
+      })
+      releasePage('104')
+    })
+  })
+
   describe('dra ner', () => {
     it('frågar SVT igen när dragningen släpps förbi tröskeln', async () => {
       openOn('104')

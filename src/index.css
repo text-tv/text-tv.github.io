@@ -202,8 +202,42 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   background: #000;
   border-bottom: 1px solid #1c1c1c;
+}
+
+/*
+ * A turning glyph while the fetch runs.
+ *
+ * The design asked for no spinner - teletext has none, and the strip and the
+ * status line already say the same thing twice. Overridden on the reader's
+ * report that a refresh answered from cache finishes before the strip has
+ * finished opening, so the gesture read as having done nothing. The strip's
+ * minimum visible time is the other half of that fix; this is what makes the
+ * held half-second legible rather than merely still.
+ *
+ * Not in Inconsolata, which carries none of the chrome glyphs, so it falls back
+ * per glyph exactly as the bar's arrows and its own refresh button do.
+ */
+.pull-strip__spinner {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--dim);
+  animation: pull-spin 900ms linear infinite;
+}
+
+@keyframes pull-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* The glyph still says what is happening; only the turning goes. */
+@media (prefers-reduced-motion: reduce) {
+  .pull-strip__spinner {
+    animation: none;
+  }
 }
 
 /* The frames' own face and palette: the strip is teletext, not app chrome. */
