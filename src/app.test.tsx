@@ -1260,10 +1260,19 @@ describe('grannarna vid sidan om', () => {
     takeOffAir('106', { prev: '105', next: '107' })
     openOn('104')
     await drawnFrames(1)
-
     await waitFor(() => expect(requestedPages()).toHaveLength(4))
     await settled()
-    expect(requestedPages()).not.toContain('107')
+    const fromHere = [...requestedPages()]
+
+    // Proof that 106's payload was actually read, and so that a third hop had
+    // everything it needed: from 105 the same chain does reach 107. Without
+    // this the assertion below would also hold against a chain that simply
+    // never got that far.
+    swipe(-120)
+    await currentPage('105')
+    await waitFor(() => expect(requestedPages()).toContain('107'))
+
+    expect(fromHere).not.toContain('107')
   })
 
   // R11
@@ -1323,6 +1332,51 @@ describe('grannarna vid sidan om', () => {
     expect(within(sheetFor('104')).getAllByRole('group')).toHaveLength(1)
   })
 
+  // R3
+  it('hämtar inte två sidor bakåt', async () => {
+    openOn('105')
+    await drawnFrames(1)
+
+    await waitFor(() => expect(requestedPages()).toHaveLength(3))
+    await settled()
+    // 104 is one back and 106 two forward; 102, two back, is not asked for.
+    expect([...requestedPages()].sort()).toEqual(['104', '105', '106'])
+  })
+
+  // R7
+  it('låter sidan man läser vara medan sidan därnäst hämtas', async () => {
+    takeOffAir('106', { prev: '105', next: '107' })
+    holdPage('106')
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toContain('106'))
+
+    // Nothing waits on the far edge of the window: 104 is drawn and both
+    // arrows work while 106 is still in flight.
+    expect(screen.getAllByRole('group')).toHaveLength(1)
+    expect(screen.getByLabelText('Föregående sida')).toBeEnabled()
+    expect(screen.getByLabelText('Nästa sida')).toBeEnabled()
+
+    releasePage('106')
+  })
+
+  // R8
+  it('behåller inte sidan därnäst när den inte gick att hämta', async () => {
+    failNextFor('106')
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toContain('106'))
+    await settled()
+
+    // Dropped, not kept as an answer about 106. Committing onto it is then an
+    // ordinary load, with the page's own error and a retry behind it.
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await dragOut(-20)
+    expect(within(sheetFor('106')).getByText('Hämtar…')).toBeInTheDocument()
+  })
+
   // R9
   it('hämtar en sida till framåt efter ett byte, inte åt båda hållen', async () => {
     takeOffAir('106', { prev: '105', next: '107' })
@@ -1334,13 +1388,35 @@ describe('grannarna vid sidan om', () => {
     swipe(-120)
     await currentPage('105')
     await drawnFrames(1)
+    // Causally, not on the clock: 107 is named by 106's payload, and the wait
+    // above returns as soon as 106 is *requested* - the fake server records a
+    // request before it answers it.
+    await waitFor(() => expect(requestedPages()).toContain('107'))
     await settled()
 
     // Only the page beyond the window's far edge. 105 and 106 both arrived
     // with the prefetch seconds ago, so the commit paints 105 from the store
-    // instead of asking again; and 103, two deep the other way, is not asked
-    // for either - 104's payload is the only thing that names it.
+    // instead of asking again; and 102, two deep the other way, is not asked
+    // for either - the window reaches one page back, never two.
     expect(requestedPages().slice(before).sort()).toEqual(['107'])
+  })
+
+  // R1, R2
+  it('visar sidan därnäst utan Hämtar… efter ett byte framåt', async () => {
+    takeOffAir('106', { prev: '105', next: '107' })
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toHaveLength(4))
+    await settled()
+
+    // The second swipe in a row is what this window exists for: 106 was
+    // fetched from 104's position, so its sheet carries content rather than
+    // blinking through "Hämtar…" first.
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await dragOut(-20)
+    expect(within(sheetFor('106')).queryByText('Hämtar…')).not.toBeInTheDocument()
   })
 
   // R11
