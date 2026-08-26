@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { App } from './App'
 import { resetDecodeCache } from './teletext/decode'
 import {
@@ -1290,6 +1291,22 @@ describe('grannarna vid sidan om', () => {
     // neighbours still point.
     swipe(120)
     await currentPage('102')
+  })
+
+  // StrictMode monterar om, och en prefetch som landar efteråt måste
+  // fortfarande få måla grannens ark: flaggan som släpper igenom svaret
+  // beväpnas om vid montering, inte bara vid nedmontering.
+  it('målar grannen även när appen har monterats om två gånger', async () => {
+    holdPage('105')
+    window.location.hash = '104'
+    render(<App />, { wrapper: StrictMode })
+    await drawnFrames(1)
+
+    releasePage('105')
+    await dragOut(-20)
+
+    await waitFor(() => expect(within(sheetFor('105')).getAllByRole('group')).toHaveLength(1))
+    expect(within(sheetFor('105')).queryByText('Hämtar…')).not.toBeInTheDocument()
   })
 
   /**
