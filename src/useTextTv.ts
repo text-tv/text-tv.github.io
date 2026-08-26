@@ -87,10 +87,12 @@ export function useTextTv(): TextTvState {
   /** What the current sheet last drew, for the carry-over below. */
   const carried = useRef<FetchResult | undefined>(undefined)
   /**
-   * The last neighbours anyone told us about. Kept across the loading window,
-   * so the arrows do not blink off between two pages.
+   * The last neighbours anyone told us about, and the page they belong to.
+   * Kept across the loading window, so the arrows do not blink off between two
+   * pages - but rotated onto the page arrived at, so they never describe the
+   * page being left.
    */
-  const held = useRef<{ prev?: PageNumber; next?: PageNumber }>({})
+  const held = useRef<{ of?: PageNumber; prev?: PageNumber; next?: PageNumber }>({})
 
   const found = known[pageNumber]
   /**
@@ -101,12 +103,28 @@ export function useTextTv(): TextTvState {
    * can swipe to does not: it has a sheet of its own, and painting the page
    * being left into it is exactly what KTD12's rotation avoids.
    */
-  const swipedTo = pageNumber === held.current.prev || pageNumber === held.current.next
+  const named = held.current
+  const swipedTo =
+    pageNumber === named.of || pageNumber === named.prev || pageNumber === named.next
   const result = found ?? (pageNumber in known || swipedTo ? undefined : carried.current)
   carried.current = result
 
+  // Arriving on a page the pair names makes the pair about to be wrong: the
+  // page behind the reader is the page they came from. Rotate before the load
+  // lands, so swiping back through the loading window returns there rather
+  // than to the outgoing page's other neighbour. `of` counts as named so the
+  // two StrictMode passes agree; rotating is then idempotent. Landing on a
+  // page the pair does not name leaves it alone - the carry-over is still
+  // painting the page it describes.
+  if (named.of !== pageNumber && swipedTo) {
+    held.current =
+      pageNumber === named.next
+        ? { of: pageNumber, prev: named.of, next: undefined }
+        : { of: pageNumber, prev: undefined, next: named.of }
+  }
+
   const own = neighboursOf(found)
-  if (own) held.current = { prev: own.prev, next: own.next }
+  if (own) held.current = { of: pageNumber, prev: own.prev, next: own.next }
 
   // Re-armed on mount, not only cleared on unmount: StrictMode mounts twice,
   // and a ref left false after the first teardown would silence every

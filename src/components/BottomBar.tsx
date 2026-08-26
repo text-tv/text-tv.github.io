@@ -5,6 +5,8 @@ interface Props {
   pageNumber: PageNumber
   prev: PageNumber | undefined
   next: PageNumber | undefined
+  /** True while the current page's own neighbours are still on their way. */
+  pending: boolean
   onNavigate: (pageNumber: PageNumber) => void
   onHome: () => void
 }
@@ -15,8 +17,21 @@ interface Props {
  * Arrows follow the payload's own neighbours, so numbers that are not
  * broadcast are skipped rather than landed on.
  */
-export function BottomBar({ pageNumber, prev, next, onNavigate, onHome }: Props) {
+export function BottomBar({ pageNumber, prev, next, pending, onNavigate, onHome }: Props) {
   const [typed, setTyped] = useState('')
+
+  /**
+   * An arrow with no target is either absent - the page has no such neighbour
+   * - or merely pending, waiting on a page still loading. Only the absent one
+   * takes the native `disabled`: disabling a focused button drops focus to
+   * `<body>`, and a bar arrow is one of the ways into that loading window.
+   */
+  const arrow = (target: PageNumber | undefined) =>
+    target
+      ? { onClick: () => onNavigate(target) }
+      : pending
+        ? { 'aria-disabled': true, onClick: () => {} }
+        : { disabled: true }
 
   const onType = (event: ChangeEvent<HTMLInputElement>) => {
     const digits = event.target.value.replace(/\D/g, '').slice(0, 3)
@@ -48,8 +63,7 @@ export function BottomBar({ pageNumber, prev, next, onNavigate, onHome }: Props)
           type="button"
           className="bar__button"
           aria-label="Föregående sida"
-          disabled={prev === undefined}
-          onClick={() => prev && onNavigate(prev)}
+          {...arrow(prev)}
         >
           ◀
         </button>
@@ -63,8 +77,7 @@ export function BottomBar({ pageNumber, prev, next, onNavigate, onHome }: Props)
           type="button"
           className="bar__button"
           aria-label="Nästa sida"
-          disabled={next === undefined}
-          onClick={() => next && onNavigate(next)}
+          {...arrow(next)}
         >
           ▶
         </button>

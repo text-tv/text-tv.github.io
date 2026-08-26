@@ -89,6 +89,7 @@ export function App() {
         pageNumber={pageNumber}
         prev={prev}
         next={next}
+        pending={result === undefined}
         onNavigate={navigate}
         onHome={() => navigate(HOME_PAGE)}
       />

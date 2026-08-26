@@ -1385,13 +1385,99 @@ describe('grannarna vid sidan om', () => {
     await currentPage('105')
 
     expect(screen.getAllByText('Hämtar…').length).toBeGreaterThan(0)
+    // The pair has rotated onto 105: behind it lies 104, and what lies ahead
+    // is not known until 105 itself lands.
     expect(screen.getByLabelText('Föregående sida')).toBeEnabled()
-    expect(screen.getByLabelText('Nästa sida')).toBeEnabled()
+    expect(screen.getByLabelText('Nästa sida')).toHaveAttribute('aria-disabled', 'true')
 
-    // And the gesture does not wait for the page: 102 is where 104's own
-    // neighbours still point.
+    // And the gesture does not wait for the page: back is 104, the page the
+    // reader just came from.
     swipe(120)
+    await currentPage('104')
+  })
+
+  it('lämnar pilen framåt otillgänglig men fokuserbar medan sidan hämtas', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+
+    swipe(-120)
+    await currentPage('105')
+
+    const back = screen.getByLabelText('Föregående sida')
+    const ahead = screen.getByLabelText('Nästa sida')
+    expect(back).toBeEnabled()
+    expect(back).not.toHaveAttribute('aria-disabled')
+    // Unavailable without `disabled`, so the arrow stays reachable by tab even
+    // while it has nowhere to go.
+    expect(ahead).toBeEnabled()
+    expect(ahead).toHaveAttribute('aria-disabled', 'true')
+
+    releasePage('105')
+    await drawnFrames(1)
+    await waitFor(() =>
+      expect(screen.getByLabelText('Nästa sida')).not.toHaveAttribute('aria-disabled'),
+    )
+  })
+
+  it('tappar inte fokus när pilen i listen bär in i en hämtning', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+
+    const ahead = screen.getByLabelText('Nästa sida')
+    ahead.focus()
+    ahead.click()
+    await currentPage('105')
+
+    // The arrow it was pressed with is now the one without a target. A browser
+    // drops focus from a button that turns `disabled` - happy-dom does not, so
+    // what pins the behaviour is the attribute the arrow must not grow.
+    const focused = document.activeElement as HTMLElement
+    expect(focused).toBe(screen.getByLabelText('Nästa sida'))
+    expect(focused).not.toBeDisabled()
+    expect(focused).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('vrider inte grannparet när man går till en sida det inte nämner', async () => {
+    holdPage('130')
+    openOn('104')
+    await drawnFrames(1)
+
+    // A hotspot on 104 leads to 130, which is neither 102 nor 105.
+    const layer = giveTheFrameALayout()
+    tapAt(layer, 500, 136)
+    await currentPage('130')
+
+    // Nothing rotates: 104's own neighbours are still what the arrows carry,
+    // and both of them still lead somewhere.
+    const back = screen.getByLabelText('Föregående sida')
+    expect(back).toBeEnabled()
+    expect(back).not.toHaveAttribute('aria-disabled')
+    const ahead = screen.getByLabelText('Nästa sida')
+    expect(ahead).toBeEnabled()
+    expect(ahead).not.toHaveAttribute('aria-disabled')
+
+    back.click()
     await currentPage('102')
+  })
+
+  it('vrider grannparet till sidan man backar till', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+
+    swipe(-120)
+    await currentPage('105')
+
+    window.history.back()
+    await currentPage('104')
+
+    // Back on 104 the pair is 104's own again, so both arrows lead somewhere.
+    await waitFor(() =>
+      expect(screen.getByLabelText('Nästa sida')).not.toHaveAttribute('aria-disabled'),
+    )
+    expect(screen.getByLabelText('Föregående sida')).toBeEnabled()
   })
 
   // StrictMode monterar om, och en prefetch som landar efteråt måste
@@ -1411,8 +1497,8 @@ describe('grannarna vid sidan om', () => {
   })
 
   /**
-   * Those held neighbours can name the page now on screen: 105 is 104's next,
-   * and 105 is where the reader now is.
+   * While 105 loads, the rotated pair gives it a page behind and none ahead,
+   * so a forward drag has nothing to commit to.
    */
   // R13
   it('sveper inte till sidan man redan står på', async () => {
@@ -1427,10 +1513,10 @@ describe('grannarna vid sidan om', () => {
     drag('pointermove', 380, 50)
     drag('pointerup', 380, 50)
 
-    // Committing there would navigate to the hash already in the bar, so the
-    // page number would never change and nothing would ever recentre the
-    // sheet. It springs back instead.
-    expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+    // With no page ahead the drag is damped rather than tracked, and the lift
+    // has nothing to commit to. The snap has nowhere to travel, so it finishes
+    // itself: the track ends centred with 105 still the page on screen.
+    expect(track().style.transform).toBe('')
     snapEnds()
     await waitFor(() => expect(sheets()).toHaveLength(1))
     expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('105')
