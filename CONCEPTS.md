@@ -20,6 +20,8 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 **Refresh** — asking the upstream service for a page again because the reader said so, rather than because the app decided the copy it holds has aged. The request is the same one a revalidation makes; the difference is what the reader is shown, since a refresh is the only wait they are deliberately standing over, and so the only one worth colouring, dimming a control for, or holding a gesture open through. A refresh ignores both freshness windows, because a reader who asks has already decided the copy in hand is not good enough.
 
+A refresh is also shown for a minimum time, whether or not it needed one. A page already in hand can answer faster than the signs of asking take to appear, and a refresh nobody saw happen reads as a refresh that did not happen; the floor is on how long the asking is *displayed*, never on when the request leaves or the answer paints. It is abandoned rather than honoured when the reader moves on — they are no longer waiting, and a wait they walked away from must not be shown against the page they walked to.
+
 **Change mark** — a mark against a row whose content came back different from the copy that was on screen. Marks are a real comparison of what the rows draw, never an inference that a fetch must have changed something, so a refresh that brings back the same page marks nothing at all. They answer a question the reader asked, which is why only a refresh produces them and a revalidation never does, and they fade rather than persisting: they describe one moment of change, not a property of the page.
 
 ## The character grid
