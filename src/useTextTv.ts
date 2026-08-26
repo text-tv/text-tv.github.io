@@ -49,7 +49,7 @@ export interface TextTvState {
   prev: PageNumber | undefined
   next: PageNumber | undefined
   /**
-   * What is known of any page the reader can reach in one swipe. `undefined`
+   * What is known of any page inside the prefetch window. `undefined`
    * is "not yet known", which is the sheet's loading state. Keyed by page
    * number rather than by place, so the sheet a commit hands the current slot
    * to carries its own content on the very first render.
@@ -272,6 +272,13 @@ export function useTextTv(): TextTvState {
   const settled = found !== undefined
   const ownPrev = own?.prev
   const ownNext = own?.next
+  /**
+   * The page two forward, named by the page one forward rather than by the
+   * current page - the only thing that can name it. Undefined until that
+   * neighbour's own payload lands, which is when the effect below asks for it.
+   * Nothing reads a neighbour of this one, which is what bounds the chain.
+   */
+  const ahead = ownNext ? neighboursOf(known[ownNext])?.next : undefined
 
   // Once the page has landed, resolve what lies either side of it, so the
   // sheet beside the finger has content before the finger gets there. A
@@ -281,13 +288,16 @@ export function useTextTv(): TextTvState {
     if (!settled) return
     if (ownPrev) prefetch(ownPrev)
     if (ownNext) prefetch(ownNext)
-    // A page further away than one swipe is not worth a megabyte of memory.
+    if (ahead) prefetch(ahead)
+    // Two pages forward and one back. Reading runs forward, so a second swipe
+    // that way is the one worth being ready for; the page behind the reader is
+    // the one they just left and is already in hand.
     setKnown((known) => {
-      const reach = [pageNumber, ownPrev, ownNext]
+      const reach = [pageNumber, ownPrev, ownNext, ahead]
       const entries = Object.entries(known).filter(([page]) => reach.includes(page))
       return entries.length === Object.keys(known).length ? known : Object.fromEntries(entries)
     })
-  }, [pageNumber, ownPrev, ownNext, settled, prefetch])
+  }, [pageNumber, ownPrev, ownNext, ahead, settled, prefetch])
 
   const reload = useCallback(() => setReloadCount((count) => count + 1), [])
 

@@ -1241,14 +1241,29 @@ describe('grannarna vid sidan om', () => {
 
   const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
 
-  // R11
-  it('hämtar båda grannarna när sidan har landat', async () => {
+  // R1, R2, R10
+  it('hämtar grannarna och sidan därnäst när sidan har landat', async () => {
     openOn('104')
     await drawnFrames(1)
 
-    await waitFor(() => expect(requestedPages()).toHaveLength(3))
+    await waitFor(() => expect(requestedPages()).toHaveLength(4))
     await settled()
-    expect([...requestedPages()].sort()).toEqual(['102', '104', '105'])
+    // Two forward: 105 is named by 104, and 106 by 105 as soon as it lands.
+    expect([...requestedPages()].sort()).toEqual(['102', '104', '105', '106'])
+  })
+
+  // R4, R11, R12
+  it('hämtar inte tre sidor framåt, ens när grannen namnger en tredje', async () => {
+    // 106 is no fixture, so it would otherwise name nothing and 107 would be
+    // unreachable however far the chain ran - an assertion no implementation
+    // could fail.
+    takeOffAir('106', { prev: '105', next: '107' })
+    openOn('104')
+    await drawnFrames(1)
+
+    await waitFor(() => expect(requestedPages()).toHaveLength(4))
+    await settled()
+    expect(requestedPages()).not.toContain('107')
   })
 
   // R11
@@ -1308,11 +1323,12 @@ describe('grannarna vid sidan om', () => {
     expect(within(sheetFor('104')).getAllByRole('group')).toHaveLength(1)
   })
 
-  // R11
+  // R9
   it('hämtar en sida till framåt efter ett byte, inte åt båda hållen', async () => {
+    takeOffAir('106', { prev: '105', next: '107' })
     openOn('104')
     await drawnFrames(1)
-    await waitFor(() => expect(requestedPages()).toHaveLength(3))
+    await waitFor(() => expect(requestedPages()).toHaveLength(4))
     const before = requestedPages().length
 
     swipe(-120)
@@ -1320,11 +1336,11 @@ describe('grannarna vid sidan om', () => {
     await drawnFrames(1)
     await settled()
 
-    // Only the page beyond. 105 arrived with the prefetch seconds ago, so the
-    // commit paints it from the store instead of asking again; and 103, two
-    // deep the other way, is not asked for either - 104's payload is the only
-    // thing that names it.
-    expect(requestedPages().slice(before).sort()).toEqual(['106'])
+    // Only the page beyond the window's far edge. 105 and 106 both arrived
+    // with the prefetch seconds ago, so the commit paints 105 from the store
+    // instead of asking again; and 103, two deep the other way, is not asked
+    // for either - 104's payload is the only thing that names it.
+    expect(requestedPages().slice(before).sort()).toEqual(['107'])
   })
 
   // R11
