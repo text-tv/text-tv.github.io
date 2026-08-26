@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { App } from './App'
@@ -244,13 +244,20 @@ describe('länkar i bilden', () => {
     expect(window.location.hash).toBe('#106')
   })
 
-  it('markerar länken direkt när den trycks', async () => {
+  it('markerar länken direkt när den trycks, och släcker den igen', async () => {
     openOn('100')
     await drawnFrames(1)
 
-    await userEvent.click(screen.getByLabelText('Sida 106'))
+    // Fired synchronously on purpose. The mark is lit for 140ms and then put
+    // out by a timer, so anything awaited between the tap and the assertion
+    // races that timer - which is what made this test fail under load.
+    fireEvent.click(screen.getByLabelText('Sida 106'))
 
     expect(document.querySelector('.hotspot-mark--flash')).toBeInTheDocument()
+    // And it does go out again, rather than staying lit on the page left behind.
+    await waitFor(() =>
+      expect(document.querySelector('.hotspot-mark--flash')).not.toBeInTheDocument(),
+    )
   })
 
   // AE2
