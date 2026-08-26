@@ -7,8 +7,11 @@ interface Props {
   next: PageNumber | undefined
   /** True while the current page has not said what lies either side of it. */
   pending: boolean
+  /** True while a fetch the reader asked for is in flight. */
+  refreshing: boolean
   onNavigate: (pageNumber: PageNumber) => void
   onHome: () => void
+  onRefresh: () => void
 }
 
 /**
@@ -17,21 +20,36 @@ interface Props {
  * Arrows follow the payload's own neighbours, so numbers that are not
  * broadcast are skipped rather than landed on.
  */
-export function BottomBar({ pageNumber, prev, next, pending, onNavigate, onHome }: Props) {
+export function BottomBar({
+  pageNumber,
+  prev,
+  next,
+  pending,
+  refreshing,
+  onNavigate,
+  onHome,
+  onRefresh,
+}: Props) {
   const [typed, setTyped] = useState('')
+
+  /**
+   * How a control says "not now" without dropping the reader's focus.
+   *
+   * Never the native `disabled`: disabling a focused button moves focus to
+   * `<body>`, and every control that uses this is one the reader may be
+   * holding when it becomes unavailable - an arrow into a loading window, or
+   * the refresh button whose own tap started the wait.
+   */
+  const holding = { 'aria-disabled': true, onClick: () => {} }
 
   /**
    * An arrow with no target is either absent - the page has no such neighbour
    * - or merely pending, waiting on a page still loading. Only the absent one
-   * takes the native `disabled`: disabling a focused button drops focus to
-   * `<body>`, and a bar arrow is one of the ways into that loading window.
+   * takes the native `disabled`; nobody is waiting on a neighbour that does
+   * not exist.
    */
   const arrow = (target: PageNumber | undefined) =>
-    target
-      ? { onClick: () => onNavigate(target) }
-      : pending
-        ? { 'aria-disabled': true, onClick: () => {} }
-        : { disabled: true }
+    target ? { onClick: () => onNavigate(target) } : pending ? holding : { disabled: true }
 
   const onType = (event: ChangeEvent<HTMLInputElement>) => {
     const digits = event.target.value.replace(/\D/g, '').slice(0, 3)
@@ -72,6 +90,18 @@ export function BottomBar({ pageNumber, prev, next, pending, onNavigate, onHome 
         </span>
         <button type="button" className="bar__button" aria-label="Startsida 100" onClick={onHome}>
           ⌂
+        </button>
+        {/*
+          Beside home rather than out on an edge: both act on *this* page, where
+          the arrows move between pages.
+        */}
+        <button
+          type="button"
+          className="bar__button bar__button--refresh"
+          aria-label="Uppdatera sidan"
+          {...(refreshing ? holding : { onClick: onRefresh })}
+        >
+          ↻
         </button>
         <button
           type="button"

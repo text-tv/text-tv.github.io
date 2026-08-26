@@ -1,6 +1,12 @@
 import {
   dampedOffset,
   EDGE_GUTTER,
+  PULL_CEILING_PX,
+  PULL_RESISTANCE,
+  PULL_STRIP_PX,
+  PULL_THRESHOLD_PX,
+  pullOffset,
+  pullProgress,
   lockAxis,
   smoothVelocity,
   startsInGutter,
@@ -183,5 +189,45 @@ describe('läsa av var arket står', () => {
     expect(translationOf('translate3d(calc(-100% - 14px), 0, 0)')).toBeUndefined()
     expect(translationOf('none')).toBeUndefined()
     expect(translationOf('')).toBeUndefined()
+  })
+})
+
+describe('pullOffset', () => {
+  it('följer fingret rakt av tills remsan är öppen', () => {
+    expect(pullOffset(10)).toBe(10)
+    expect(pullOffset(PULL_STRIP_PX)).toBe(PULL_STRIP_PX)
+  })
+
+  it('tröskeln nås innan motståndet börjar, så armeringen känns som en öppen remsa', () => {
+    expect(PULL_THRESHOLD_PX).toBeLessThan(PULL_STRIP_PX)
+    expect(pullOffset(PULL_THRESHOLD_PX)).toBe(PULL_THRESHOLD_PX)
+  })
+
+  it('bromsar bortom remsan i stället för att följa med', () => {
+    const past = pullOffset(PULL_STRIP_PX + 100)
+    expect(past).toBeGreaterThan(PULL_STRIP_PX)
+    expect(past).toBeLessThan(PULL_STRIP_PX + 100 * PULL_RESISTANCE + 1)
+    expect(pullOffset(PULL_STRIP_PX + 20)).toBeCloseTo(PULL_STRIP_PX + 20 * PULL_RESISTANCE)
+  })
+
+  it('går aldrig längre än taket', () => {
+    expect(pullOffset(10000)).toBe(PULL_CEILING_PX)
+  })
+
+  it('lyfter aldrig arket uppåt', () => {
+    expect(pullOffset(0)).toBe(0)
+    expect(pullOffset(-50)).toBe(0)
+  })
+})
+
+describe('pullProgress', () => {
+  it('är full vid tröskeln och stannar där', () => {
+    expect(pullProgress(PULL_THRESHOLD_PX)).toBe(1)
+    expect(pullProgress(PULL_CEILING_PX)).toBe(1)
+  })
+
+  it('räknar upp jämnt fram till tröskeln', () => {
+    expect(pullProgress(PULL_THRESHOLD_PX / 2)).toBeCloseTo(0.5)
+    expect(pullProgress(0)).toBe(0)
   })
 })

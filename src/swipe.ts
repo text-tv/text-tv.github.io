@@ -42,6 +42,42 @@ export const SWIPE_DAMP_RATIO = 0.42
 export const SWIPE_DAMP_CEILING = 0.16
 export const CLICK_SWALLOW_MS = 400
 
+/**
+ * The downward pull that asks SVT for the page again.
+ *
+ * `PULL_STRIP_PX` is both the height of the revealed strip and where the track
+ * parks for the duration of the fetch, so the strip is exactly full when it is
+ * doing something. `PULL_THRESHOLD_PX` sits below it on purpose: the arming
+ * point lands inside the 1:1 region, so the reader feels it as "the strip is
+ * fully open" rather than as a distance they have to estimate.
+ *
+ * `PULL_RESISTANCE` and `PULL_CEILING_PX` are the same acknowledge-and-decline
+ * shape as `SWIPE_DAMP_*` on the other axis: past the strip the sheet still
+ * moves, at a third of the finger's travel, and stops at twice the strip.
+ */
+export const PULL_STRIP_PX = 44
+export const PULL_THRESHOLD_PX = 40
+export const PULL_CEILING_PX = 88
+export const PULL_RESISTANCE = 0.34
+
+/**
+ * How far the strip has travelled for a finger that has moved `dy` down.
+ *
+ * Upward travel is not a pull and never moves it, so the floor is zero rather
+ * than a negative offset - a gesture that crosses back above its origin closes
+ * the strip instead of lifting the sheet off the top of the screen.
+ */
+export function pullOffset(dy: number): number {
+  if (dy <= 0) return 0
+  if (dy <= PULL_STRIP_PX) return dy
+  return Math.min(PULL_CEILING_PX, PULL_STRIP_PX + (dy - PULL_STRIP_PX) * PULL_RESISTANCE)
+}
+
+/** How far along the strip's fill rule is, 0 to 1. */
+export function pullProgress(offset: number): number {
+  return Math.min(1, Math.max(0, offset / PULL_THRESHOLD_PX))
+}
+
 export interface Point {
   x: number
   y: number

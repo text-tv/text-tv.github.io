@@ -60,6 +60,20 @@ export const reframe = (pageNumber: string, source: string): void => {
   })
 }
 
+/**
+ * Republishes a page with one sub-page fewer, the way SVT does when a rolling
+ * page sheds a screen. The count is what decides whether two payloads can be
+ * compared at all.
+ */
+export const dropSubPage = (pageNumber: string): void => {
+  type Body = { data: { subPages: unknown[] } }
+  const body = captured.get(pageNumber) as Body
+  captured.set(pageNumber, {
+    ...body,
+    data: { ...body.data, subPages: body.data.subPages.slice(0, -1) },
+  })
+}
+
 /** Every page the app has asked the network for, oldest first. */
 const requested: string[] = []
 

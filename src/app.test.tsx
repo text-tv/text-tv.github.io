@@ -20,6 +20,7 @@ import {
   reframe,
   republish,
   dropPublishTime,
+  dropSubPage,
   requestedPages,
   stopFailing,
   takeOffAir,
@@ -2143,5 +2144,615 @@ describe('det synliga området', () => {
 
     await currentPage('100')
     expect(heightProperty()).toBe('')
+  })
+})
+
+describe('uppdatera sidan', () => {
+  const refreshButton = () => screen.getByLabelText('Uppdatera sidan')
+  const status = () => document.querySelector('.freshness__status') as HTMLElement
+  const strip = () => document.querySelector('.pull-strip__label') as HTMLElement
+  const pullTrack = () => document.querySelector('.pull-track') as HTMLElement
+  const marks = () => [...document.querySelectorAll('.text-frame__mark')]
+
+  /**
+   * A finger drag, dispatched raw: happy-dom synthesises nothing from a
+   * pointer sequence, so every event the gesture needs is spelled out. The
+   * moves are split so the axis lock and the follow are two separate frames,
+   * which is how a real finger arrives.
+   */
+  const pullBy = (dy: number, { release = true } = {}) => {
+    const target = container()
+    fire(target, 'pointerdown', 200, 100, 0)
+    fire(target, 'pointermove', 200, 100 + Math.sign(dy) * 10, 20)
+    fire(target, 'pointermove', 200, 100 + dy, 40)
+    if (release) fire(target, 'pointerup', 200, 100 + dy, 60)
+  }
+
+  /** happy-dom runs no transitions, so the strip's close only ends by hand. */
+  const stripSettles = () => pullTrack()?.dispatchEvent(new Event('transitionend'))
+
+  describe('knappen i raden', () => {
+    it('frågar SVT igen fast sidan hämtades nyss', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+      expect(requestedPages().at(-1)).toBe('104')
+    })
+
+    it('släcker knappen och gör den overksam medan hämtningen pågår', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+      const before = requestedPages().length
+
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(refreshButton()).toHaveAttribute('aria-disabled', 'true'))
+
+      await userEvent.click(refreshButton())
+      await settled()
+      expect(requestedPages().length).toBe(before + 1)
+
+      releasePage('104')
+      await waitFor(() => expect(refreshButton()).not.toHaveAttribute('aria-disabled'))
+    })
+
+    // The whole reason for aria-disabled over disabled: the reader's own tap
+    // is what starts the wait they are focused during.
+    it('behåller fokus medan hämtningen pågår', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+
+      refreshButton().focus()
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(refreshButton()).toHaveAttribute('aria-disabled', 'true'))
+      expect(refreshButton()).not.toBeDisabled()
+      // Documentation, not a guard: happy-dom does not move focus when
+      // `disabled` is set, so only a real browser can fail this line. The
+      // attribute assertion above is what actually holds the behaviour.
+      expect(document.activeElement).toBe(refreshButton())
+      releasePage('104')
+    })
+
+    it('öppnar inte remsan - den hör till dragningen', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(refreshButton()).toHaveAttribute('aria-disabled', 'true'))
+
+      expect(strip()).toHaveTextContent('')
+      expect(pullTrack().style.transform).toBe('')
+      releasePage('104')
+    })
+  })
+
+  describe('färskhetsraden', () => {
+    it('säger Hämtar… i cyan medan läsaren väntar, och sedan den nya tiden', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      republish('104', '2026-08-26T15:41:00Z')
+      holdPage('104')
+
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(status()).toHaveTextContent('Hämtar…'))
+      expect(status()).toHaveClass('freshness__status--refreshing')
+
+      releasePage('104')
+      await waitFor(() =>
+        expect(status()).toHaveTextContent(shownAs('2026-08-26T15:41:00Z')),
+      )
+      expect(status()).not.toHaveClass('freshness__status--refreshing')
+    })
+
+    // The cyan is reserved: spend it on a fetch nobody asked for and it stops
+    // meaning "you are standing over this one".
+    it('lämnar en bakgrundsuppdatering grå', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      // Age the stored copy past the revalidation window, or coming back to
+      // the tab refuses to refetch and the test proves nothing.
+      const index = JSON.parse(window.localStorage.getItem('texttv:fetched')!)
+      for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
+      window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+      holdPage('104')
+      const before = requestedPages().length
+
+      document.dispatchEvent(new Event('visibilitychange'))
+
+      // The revalidation really is running: otherwise the grey below is only
+      // the resting state and holds against any implementation.
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+      expect(status()).toHaveTextContent('Cachad · uppdaterar…')
+      expect(status()).not.toHaveClass('freshness__status--refreshing')
+      releasePage('104')
+    })
+
+    it('läser upp statusen artigt', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      expect(status()).toHaveAttribute('aria-live', 'polite')
+    })
+
+    it('behåller sidan och den gamla tiden när uppdateringen misslyckas', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = status().textContent
+
+      failNextFor('104')
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(status()).toHaveTextContent(before ?? ''))
+      expect(textFrames()).toHaveLength(1)
+      expect(refreshButton()).not.toHaveAttribute('aria-disabled')
+      stopFailing('104')
+    })
+  })
+
+  describe('dra ner', () => {
+    it('frågar SVT igen när dragningen släpps förbi tröskeln', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      pullBy(60)
+
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+    })
+
+    it('gör ingenting när dragningen släpps före tröskeln', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      pullBy(20)
+
+      await settled()
+      expect(requestedPages().length).toBe(before)
+    })
+
+    it('lämnar en dragning uppåt till sidans egen rullning', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      pullBy(-80)
+
+      await settled()
+      expect(requestedPages().length).toBe(before)
+      expect(pullTrack().style.transform).toBe('')
+      // The label is what makes this bite: `onPullState('below')` fires at the
+      // axis lock, so an upward drag wrongly read as a pull shows itself here
+      // even though the offset clamps to zero and the transform stays empty.
+      expect(strip()).toHaveTextContent('')
+    })
+
+    it('lämnar en dragning nedåt till rullningen när sidan inte står högst upp', async () => {
+      openOn('331')
+      await drawnFrames(14, 10000)
+      const sheet = document.querySelector('.swipe-sheet--current') as HTMLElement
+      Object.defineProperty(sheet, 'scrollTop', { value: 120, configurable: true })
+      const before = requestedPages().length
+
+      pullBy(60)
+
+      await settled()
+      expect(requestedPages().length).toBe(before)
+    })
+
+    it('byter etikett vid tröskeln och tillbaka igen', async () => {
+      openOn('104')
+      await drawnFrames(1)
+
+      const target = container()
+      fire(target, 'pointerdown', 200, 100, 0)
+      fire(target, 'pointermove', 200, 110, 20)
+      await waitFor(() => expect(strip()).toHaveTextContent('DRA NER FÖR ATT UPPDATERA'))
+
+      fire(target, 'pointermove', 200, 160, 40)
+      await waitFor(() => expect(strip()).toHaveTextContent('SLÄPP FÖR ATT UPPDATERA'))
+
+      fire(target, 'pointermove', 200, 110, 60)
+      await waitFor(() => expect(strip()).toHaveTextContent('DRA NER FÖR ATT UPPDATERA'))
+
+      fire(target, 'pointercancel', 200, 110, 80)
+    })
+
+    it('namnger sidan som hämtas medan remsan står kvar', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+
+      pullBy(60)
+
+      await waitFor(() => expect(strip()).toHaveTextContent('HÄMTAR 104…'))
+      expect(pullTrack().style.transform).toBe('translate3d(0, 44px, 0)')
+      releasePage('104')
+    })
+
+    // The three rescue paths. Each one has to bring the strip home, or the
+    // sheet parks 44px down with nothing left to close it.
+    it.each([
+      ['pointercancel', () => fire(container(), 'pointercancel', 200, 160, 60)],
+      ['blur', () => window.dispatchEvent(new Event('blur'))],
+      [
+        'visibilitychange',
+        () => {
+          Object.defineProperty(document, 'visibilityState', {
+            value: 'hidden',
+            configurable: true,
+          })
+          document.dispatchEvent(new Event('visibilitychange'))
+          Object.defineProperty(document, 'visibilityState', {
+            value: 'visible',
+            configurable: true,
+          })
+        },
+      ],
+    ])('stänger remsan när gesten avbryts av %s', async (_name, abort) => {
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      pullBy(60, { release: false })
+      await waitFor(() => expect(pullTrack().style.transform).not.toBe(''))
+
+      abort()
+
+      await settled()
+      expect(pullTrack().style.transform).toBe('')
+      expect(requestedPages().length).toBe(before)
+    })
+
+    it('struntar i en dragning medan en uppdatering redan pågår', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(refreshButton()).toHaveAttribute('aria-disabled', 'true'))
+      const before = requestedPages().length
+
+      pullBy(60, { release: false })
+      // Not merely refused at release: the strip never follows the finger, so
+      // nothing suggests a second fetch is on offer while one is running.
+      expect(pullTrack().style.transform).toBe('')
+      expect(strip()).toHaveTextContent('')
+      fire(container(), 'pointerup', 200, 160, 60)
+
+      await settled()
+      expect(requestedPages().length).toBe(before)
+      releasePage('104')
+    })
+
+    it('stänger remsan när sidan har landat', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+
+      pullBy(60)
+      await waitFor(() => expect(strip()).toHaveTextContent('HÄMTAR 104…'))
+
+      releasePage('104')
+      await waitFor(() => expect(pullTrack().style.transform).toBe(''))
+      // The label holds the fetching line through the close, then retires.
+      expect(strip()).toHaveTextContent('HÄMTAR 104…')
+      stripSettles()
+      await waitFor(() => expect(strip()).toHaveTextContent(''))
+    })
+
+    it('hämtar utan att följa fingret när rörelse är bortvald', async () => {
+      const realMatchMedia = window.matchMedia
+      window.matchMedia = ((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      })) as unknown as typeof window.matchMedia
+      try {
+        openOn('104')
+        await drawnFrames(1)
+        const before = requestedPages().length
+
+        const target = container()
+        fire(target, 'pointerdown', 200, 100, 0)
+        fire(target, 'pointermove', 200, 110, 20)
+        fire(target, 'pointermove', 200, 160, 40)
+        // Nothing followed the finger: the strip only opens on release.
+        expect(pullTrack().style.transform).toBe('')
+        fire(target, 'pointerup', 200, 160, 60)
+
+        await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+      } finally {
+        window.matchMedia = realMatchMedia
+      }
+    })
+
+    // The closing edge is consumed once. Bailing out of it for any live touch
+    // - a tap on a hotspot is one - would drop it for good and leave the strip
+    // parked 44px down for the rest of the session.
+    it('stänger remsan även om ett finger ligger nere när sidan landar', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+
+      pullBy(60)
+      await waitFor(() => expect(strip()).toHaveTextContent('HÄMTAR 104…'))
+
+      // A finger back on the page while the response is still in the air.
+      fire(container(), 'pointerdown', 200, 300, 100)
+      releasePage('104')
+
+      await waitFor(() => expect(pullTrack().style.transform).toBe(''))
+      fire(container(), 'pointerup', 200, 300, 120)
+    })
+
+    it('lämnar inte arket fruset när ett kantgrepp avbryter en pågående snäpp', async () => {
+      Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+      openOn('104')
+      await drawnFrames(1)
+
+      // Commit a swipe, then put a finger in the gutter while its snap is
+      // still running. A gutter touch can never become a sideways gesture, so
+      // it must not take the snap over - taking it over abandons the page
+      // change it was carrying and puts nothing in its place.
+      fire(container(), 'pointerdown', 200, 300, 0)
+      fire(container(), 'pointermove', 100, 300, 50)
+      fire(container(), 'pointerup', 100, 300, 50)
+
+      fire(container(), 'pointerdown', 20, 300, 100)
+      fire(container(), 'pointermove', 120, 300, 150)
+      fire(container(), 'pointerup', 120, 300, 150)
+
+      snapEnds()
+      await currentPage('105')
+    })
+
+    // The other half: a downward drag *is* allowed to take the gesture, so the
+    // snap it interrupted has to be finished by hand rather than left parked.
+    it('lämnar tillbaka arket när ett nedåtdrag avbryter en pågående snäpp', async () => {
+      openOn('104')
+      await drawnFrames(1)
+
+      fire(container(), 'pointerdown', 200, 300, 0)
+      fire(container(), 'pointermove', 100, 300, 50)
+      fire(container(), 'pointerup', 100, 300, 50)
+      // React flushes a listener outside its own event system in a microtask.
+      await waitFor(() => expect(sheets().length).toBeGreaterThan(1))
+
+      fire(container(), 'pointerdown', 200, 100, 100)
+      fire(container(), 'pointermove', 200, 110, 120)
+      fire(container(), 'pointermove', 200, 160, 140)
+
+      // The sheets the sideways drag mounted are let go: nothing is moving
+      // sideways any more, and the track is back at centre.
+      await waitFor(() => expect(sheets()).toHaveLength(1))
+      expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
+      fire(container(), 'pointercancel', 200, 160, 160)
+    })
+
+    it('stänger remsan när läsaren lämnar sidan mitt i hämtningen', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      holdPage('104')
+
+      pullBy(60)
+      await waitFor(() => expect(strip()).toHaveTextContent('HÄMTAR 104…'))
+
+      window.location.hash = '100'
+      await currentPage('100')
+
+      await waitFor(() => expect(pullTrack().style.transform).toBe(''))
+      releasePage('104')
+    })
+
+    it('drar ner även när greppet börjar i kantremsan', async () => {
+      Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+      openOn('104')
+      await drawnFrames(1)
+      const before = requestedPages().length
+
+      const target = container()
+      fire(target, 'pointerdown', 20, 100, 0)
+      fire(target, 'pointermove', 20, 110, 20)
+      fire(target, 'pointermove', 20, 160, 40)
+      fire(target, 'pointerup', 20, 160, 60)
+
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+    })
+  })
+
+  describe('vad som ändrades', () => {
+    it('märker ut raderna som kom tillbaka annorlunda', async () => {
+      openOn('377')
+      await drawnFrames(1)
+      expect(marks()).toHaveLength(0)
+
+      reframe('377', '331')
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(marks().length).toBeGreaterThan(0))
+      // Some rows, not all of them: a diff that marked everything would pass
+      // the lower bound and say nothing about what actually changed.
+      expect(marks().length).toBeLessThan(
+        document.querySelectorAll('.text-frame__row').length,
+      )
+    })
+
+    // Pins the shape rather than the diff: an unchanged GIF never re-runs the
+    // decode effect, so the comparison is never reached at all. That is the
+    // cheap path, and it is what keeps "a fetch happened" from meaning "mark".
+    // The diff itself is pinned in src/teletext/diff.test.ts.
+    it('märker ingenting när sidan kom tillbaka likadan', async () => {
+      openOn('377')
+      await drawnFrames(1)
+
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(requestedPages().filter((p) => p === '377')).toHaveLength(2))
+
+      await settled()
+      expect(marks()).toHaveLength(0)
+    })
+
+    it('märker ingenting när uppdateringen kom av sig själv', async () => {
+      openOn('377')
+      await drawnFrames(1)
+      // Age the stored copy past the revalidation window, or coming back to
+      // the tab refuses to refetch and the test proves nothing.
+      const index = JSON.parse(window.localStorage.getItem('texttv:fetched')!)
+      for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
+      window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+      reframe('377', '331')
+      const before = requestedPages().length
+
+      document.dispatchEvent(new Event('visibilitychange'))
+
+      // Wait for the new frame to actually be on screen: marking nothing is
+      // only news once there was something to mark.
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+      await waitFor(() => expect(status()).toHaveTextContent(/^Uppdaterad/))
+      await settled()
+      expect(marks()).toHaveLength(0)
+    })
+
+    it('märker ingenting när antalet delsidor ändrats - då går de inte att para ihop', async () => {
+      openOn('331')
+      await drawnFrames(14, 10000)
+
+      // Both at once, and the pairing is the point: the first frame really did
+      // change, so without the count check it would mark. A payload with a
+      // different number of screens is not comparable, so it marks nothing.
+      reframe('331', '377')
+      dropSubPage('331')
+      await userEvent.click(refreshButton())
+
+      await drawnFrames(13, 10000)
+      await settled()
+      expect(marks()).toHaveLength(0)
+    })
+
+    // Paint order is the whole mechanism: column 0 is blank but still painted,
+    // as a run of spaces with an opaque background, and runs carry no stacking
+    // order. A mark before that run would be drawn and then covered.
+    it('ritar märket efter radens egna körningar', async () => {
+      openOn('377')
+      await drawnFrames(1)
+      reframe('377', '331')
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(marks().length).toBeGreaterThan(0))
+      for (const mark of marks()) {
+        expect(mark.parentElement).toHaveClass('text-frame__row')
+        expect(mark.parentElement?.lastElementChild).toBe(mark)
+      }
+    })
+
+    // Transitions bubble, and the marks put one inside the swipe track for the
+    // first time. A mark fading out must not finish a snap that is running.
+    it('avslutar inte ett svep när ett märke tonar bort', async () => {
+      openOn('377')
+      await drawnFrames(1)
+      reframe('377', '331')
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(marks().length).toBeGreaterThan(0))
+
+      // A committed swipe, its snap still running.
+      fire(container(), 'pointerdown', 500, 300, 0)
+      fire(container(), 'pointermove', 300, 300, 50)
+      fire(container(), 'pointerup', 300, 300, 50)
+
+      const before = screen.getByLabelText('Aktuell sida').textContent
+      marks()[0].dispatchEvent(new Event('transitionend', { bubbles: true }))
+
+      await settled()
+      expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent(before ?? '')
+    })
+
+    it('märker ingenting när man återvänder till en sida man uppdaterat', async () => {
+      openOn('104')
+      await drawnFrames(1)
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(requestedPages().filter((p) => p === '104').length).toBe(2))
+
+      reframe('104', '331')
+      // Age everything so returning really refetches rather than repainting.
+      const index = JSON.parse(window.localStorage.getItem('texttv:fetched')!)
+      for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
+      window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+
+      window.location.hash = '100'
+      await currentPage('100')
+      window.location.hash = '104'
+      await currentPage('104')
+
+      await waitFor(() => expect(textFrames().length).toBeGreaterThan(0))
+      await settled()
+      expect(marks()).toHaveLength(0)
+    })
+
+    it('låter märkena stå kvar 1,7s och tonar bort dem sedan', async () => {
+      openOn('377')
+      await drawnFrames(1)
+      reframe('377', '331')
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(marks().length).toBeGreaterThan(0))
+
+      // Still solid well into the window: fading immediately would halve the
+      // time a scanning reader has to find what moved. Real time rather than
+      // fake timers, which would have to be threaded through msw and the async
+      // decode as well as this one effect.
+      await new Promise((resolve) => setTimeout(resolve, 900))
+      expect(marks()[0]).not.toHaveClass('text-frame__mark--fading')
+
+      await waitFor(() => expect(marks()[0]).toHaveClass('text-frame__mark--fading'), {
+        timeout: 3000,
+      })
+      await waitFor(() => expect(marks()).toHaveLength(0), { timeout: 3000 })
+    })
+
+    // A refresh that changes nothing runs no decode, so the frame never sees
+    // that markId. If it were left owing one, the next change from any source
+    // would spend it - and a background revalidation would mark.
+    it('märker ingenting i bakgrunden efter en uppdatering som inte ändrade något', async () => {
+      openOn('377')
+      await drawnFrames(1)
+
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(requestedPages().filter((p) => p === '377').length).toBe(2))
+      expect(marks()).toHaveLength(0)
+
+      const index = JSON.parse(window.localStorage.getItem('texttv:fetched')!)
+      for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
+      window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+      reframe('377', '331')
+      const before = requestedPages().length
+
+      document.dispatchEvent(new Event('visibilitychange'))
+
+      await waitFor(() => expect(requestedPages().length).toBe(before + 1))
+      await waitFor(() => expect(status()).toHaveTextContent(/^Uppdaterad/))
+      await settled()
+      expect(marks()).toHaveLength(0)
+    })
+
+    it('döljer märkena för uppläsning', async () => {
+      openOn('377')
+      await drawnFrames(1)
+      reframe('377', '331')
+      await userEvent.click(refreshButton())
+
+      await waitFor(() => expect(marks().length).toBeGreaterThan(0))
+      for (const mark of marks()) expect(mark).toHaveAttribute('aria-hidden', 'true')
+    })
   })
 })

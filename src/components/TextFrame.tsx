@@ -6,6 +6,10 @@ interface Props {
   rows: DisplayRow[]
   /** The frame the grid came from; an unresolved cell is cut out of it (R6). */
   gifDataUrl: string
+  /** Grid rows a refresh brought back different, marked in column 0. */
+  changed?: readonly number[]
+  /** True once the marks have had their time and are on their way out. */
+  fading?: boolean
 }
 
 /**
@@ -78,7 +82,9 @@ function RunElement({ run, gifDataUrl }: { run: Run; gifDataUrl: string }) {
  * width, so the page fills the same box the GIF did at any column width and
  * stays sharp at any zoom - which is the point of rendering text at all.
  */
-export function TextFrame({ rows, gifDataUrl }: Props) {
+export function TextFrame({ rows, gifDataUrl, changed = [], fading = false }: Props) {
+  const marked = new Set(changed)
+
   return (
     <div className="text-frame" style={vars({ '--cols': GRID_COLS, '--rows': GRID_ROWS })}>
       {rows.map((row) => (
@@ -90,6 +96,20 @@ export function TextFrame({ rows, gifDataUrl }: Props) {
           {row.runs.map((run) => (
             <RunElement key={run.col} run={run} gifDataUrl={gifDataUrl} />
           ))}
+          {/*
+            Last, not first. Column 0 is blank on every SVT page, but blank is
+            not nothing: the resolver emits it as a run of spaces carrying an
+            opaque background, and runs are given no stacking order on purpose
+            (see the bleed note in the stylesheet), so paint order is all there
+            is. A mark drawn before that run would be covered by it. Inside the
+            row, so a double-height row scales the mark along with its text.
+          */}
+          {marked.has(row.row) && (
+            <span
+              className={`text-frame__mark${fading ? ' text-frame__mark--fading' : ''}`}
+              aria-hidden="true"
+            />
+          )}
         </div>
       ))}
     </div>

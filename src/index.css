@@ -22,6 +22,8 @@
   --bar-height: 56px;
   --rail-height: 44px;
   --freshness-height: 26px;
+  /* Both the strip's height and where the track parks during the fetch. */
+  --pull-strip-height: 44px;
   /*
    * Extra height per teletext row. The cell is 13x16 by broadcast, which packs
    * the lines tighter than a screen wants them; the rows are drawn on a taller
@@ -141,6 +143,15 @@ body {
   text-overflow: ellipsis;
 }
 
+/*
+ * The one place the chrome borrows a broadcast colour. A refresh the reader
+ * asked for is the only wait they are standing over; a background revalidation
+ * keeps the grey, or the colour would stop meaning anything.
+ */
+.freshness__status--refreshing {
+  color: #00ffff;
+}
+
 .freshness__source {
   white-space: nowrap;
 }
@@ -158,6 +169,81 @@ body {
   min-height: 0;
   position: relative;
   overflow: hidden;
+}
+
+/*
+ * The vertical half of the gesture, on its own box so the two axes never write
+ * the same transform. The hook writes this one; nothing here does.
+ *
+ * There is deliberately no `touch-action` here or on .content. `pan-y` would be
+ * the obvious enabler, and the swipe-between-pages plan rejected it: without
+ * `pan-x` it makes Chrome register a system-gesture-exclusion rect, which
+ * suppresses the Android back gesture over the content area. The OS gesture
+ * wins by settled decision, so the pull lives with the browser occasionally
+ * claiming a downward drag and answering with pointercancel - which the hook
+ * already treats as an abandoned pull.
+ */
+.pull-track {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * The strip rides in above the page: it sits one strip-height up, so the same
+ * translate that moves the sheet down brings it into view. .content clips it
+ * when the track is home.
+ */
+.pull-strip {
+  position: absolute;
+  top: calc(var(--pull-strip-height) * -1);
+  left: 0;
+  width: 100%;
+  height: var(--pull-strip-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border-bottom: 1px solid #1c1c1c;
+}
+
+/* The frames' own face and palette: the strip is teletext, not app chrome. */
+.pull-strip__label {
+  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-stretch: 150%;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #00ffff;
+}
+
+.pull-strip--armed .pull-strip__label {
+  color: #ffff00;
+}
+
+/* The wait is not an instruction, so it drops out of the palette. */
+.pull-strip--fetching .pull-strip__label {
+  color: var(--dim);
+}
+
+/*
+ * How close the release is to arming, drawn rather than described. Scaled per
+ * frame by the hook while the finger is down, and hidden the moment it lifts -
+ * there is nothing left to promise once the gesture has been decided.
+ */
+.pull-strip__fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: #ffff00;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.pull-strip--idle .pull-strip__fill,
+.pull-strip--fetching .pull-strip__fill {
+  opacity: 0;
 }
 
 /* Carries the whole gesture. The hook writes its transform; nothing here does. */
@@ -361,6 +447,30 @@ body {
   height: calc(var(--cell-h) * 2 + 0.5px);
   transform: scaleY(0.5);
   transform-origin: top left;
+}
+
+/*
+ * A row a refresh brought back different, marked in column 0 - the one cell
+ * SVT leaves blank on every page, so the mark costs no character and never
+ * sits on top of text. It is the row's last child, because the blank column is
+ * still painted (as a run of spaces with an opaque background) and runs carry
+ * no stacking order: paint order is what keeps the mark visible.
+ *
+ * It inherits the row's scaleY, which is right - a changed double-height line
+ * is two grid rows tall and its mark should say so.
+ */
+.text-frame__mark {
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: max(3px, calc(var(--cell-w) * 0.42));
+  background: #ffff00;
+  transition: opacity 500ms linear;
+}
+
+.text-frame__mark--fading {
+  opacity: 0;
 }
 
 /*
@@ -587,21 +697,29 @@ body {
   border-top: 1px solid #1c1c1c;
 }
 
-/* The controls follow the reading column; the bar's black spans the viewport. */
+/*
+ * The controls follow the reading column; the bar's black spans the viewport.
+ *
+ * The gaps are this tight on purpose: six controls - the keypad, three glyphs
+ * either side of the page number, and the number itself - do not fit a 390px
+ * bar at the 8px gap and 12px padding this used to carry. The keypad's own
+ * narrowing below is part of the same measurement. Widening either puts the
+ * next arrow off the edge on the smallest phone the app targets.
+ */
 .bar__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 2px;
   width: 100%;
   max-width: var(--frame-max);
-  padding: 0 12px;
+  padding: 0 10px;
 }
 
 .bar__input {
-  width: 4.5em;
+  width: 3.8em;
   height: 40px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 1px solid var(--dim);
   border-radius: 6px;
   background: #000;
@@ -625,6 +743,16 @@ body {
 .bar__button:disabled,
 .bar__button[aria-disabled='true'] {
   color: #3a3a3a;
+}
+
+/*
+ * A pixel under the other bar glyphs, which balances the heavier curve, and
+ * the only one that fades: the arrows say whether a swipe will go anywhere and
+ * should answer instantly, where this one is reporting a wait it just started.
+ */
+.bar__button--refresh {
+  font-size: 21px;
+  transition: color 140ms linear;
 }
 
 .bar__page {

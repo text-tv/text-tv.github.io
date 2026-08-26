@@ -70,10 +70,26 @@ export interface TextTvState {
   contentFor: (pageNumber: PageNumber) => FetchResult | undefined
   /** True while showing a cached copy that a fetch is still revalidating. */
   stale: boolean
+  /**
+   * True while a fetch the reader asked for is in flight. A background
+   * revalidation leaves it false: it drives the signals the reader is standing
+   * over - the cyan status, the dimmed refresh button, the parked pull strip -
+   * and spending them on a fetch nobody asked for would make them mean nothing.
+   */
+  refreshing: boolean
+  /**
+   * Bumped once per reader-initiated payload that can be compared with the one
+   * it replaced. A counter rather than a flag: the payload lands, and the
+   * decode that could compare it resolves later and possibly more than once, so
+   * each frame compares this against what it has already marked.
+   */
+  markId: number
   /** When the displayed content was published or last fetched. */
   updatedAt: number | undefined
   navigate: (pageNumber: PageNumber) => void
   reload: () => void
+  /** Reload, and say it was the reader who asked. */
+  refresh: () => void
 }
 
 /**
@@ -86,8 +102,19 @@ export function useTextTv(): TextTvState {
   const [pageNumber, setPageNumber] = useState<PageNumber>(() => initialPage(Date.now()))
   const [known, setKnown] = useState<Known>({})
   const [stale, setStale] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [markId, setMarkId] = useState(0)
   const [updatedAt, setUpdatedAt] = useState<number | undefined>()
   const [reloadCount, setReloadCount] = useState(0)
+  /**
+   * Which load the reader asked for: the `reloadCount` it bumped to and the
+   * page it was standing on. Compared, never consumed - StrictMode runs the
+   * load effect, tears it down and runs it again, and a flag the first pass
+   * spent would leave the second one, whose result is the one kept, thinking
+   * nobody asked. The page is carried too: navigating away does not change
+   * `reloadCount`, so the count alone would name the next page's load as well.
+   */
+  const refreshWanted = useRef<{ count: number; page: PageNumber } | undefined>(undefined)
   /** The page a fetch is currently in flight for, if any. */
   const inFlight = useRef<PageNumber | undefined>(undefined)
   /**
@@ -193,6 +220,17 @@ export function useTextTv(): TextTvState {
     if (firstLoad.current !== undefined && firstLoad.current !== pageNumber) {
       firstLoad.current = undefined
     }
+    // Whether this run is the one the reader asked for. Read once here rather
+    // than in each branch below, so the cleanup and the response agree.
+    const readerAsked =
+      refreshWanted.current?.count === reloadCount && refreshWanted.current.page === pageNumber
+    // Retired by leaving the page, not by the fetch succeeding - the same rule
+    // `firstLoad` above follows. A note left standing would match again on a
+    // later return to that page at the same count, and mark a load nobody
+    // asked for. The cleanup of the run being replaced has already read it.
+    if (refreshWanted.current && refreshWanted.current.page !== pageNumber) {
+      refreshWanted.current = undefined
+    }
     inFlight.current = pageNumber
 
     // Paint the last-seen copy first; a restored page is never left unfetched.
@@ -249,11 +287,25 @@ export function useTextTv(): TextTvState {
       // cached copy and the copy is forgotten rather than shown again later.
       if (fresh.kind === 'error' && painted) {
         setStale(false)
+        if (readerAsked) setRefreshing(false)
         return
       }
       arrived.current[pageNumber] = Date.now()
       setKnown((known) => ({ ...known, [pageNumber]: fresh }))
       setStale(false)
+      if (readerAsked) {
+        setRefreshing(false)
+        // Only a payload that can be compared licenses the marks. A page whose
+        // sub-page count changed is not comparable: the frames no longer pair
+        // up, and marking by position would invent differences.
+        if (
+          fresh.kind === 'page' &&
+          painted?.kind === 'page' &&
+          painted.subPages.length === fresh.subPages.length
+        ) {
+          setMarkId((id) => id + 1)
+        }
+      }
       if (fresh.kind === 'page') {
         const now = Date.now()
         setUpdatedAt(fresh.updatedAt)
@@ -266,6 +318,12 @@ export function useTextTv(): TextTvState {
 
     return () => {
       cancelled = true
+      // Guarded, because `reloadCount` is a dependency: the very act of asking
+      // for a refresh tears this effect down and rebuilds it. The run being
+      // cleaned up here is the one *before* the refresh, whose `readerAsked` is
+      // false, so the flag the reader just raised survives. A page change
+      // during the refresh does reach this with it true, and clears it.
+      if (readerAsked) setRefreshing(false)
       if (inFlight.current === pageNumber) inFlight.current = undefined
     }
   }, [pageNumber, reloadCount])
@@ -329,6 +387,21 @@ export function useTextTv(): TextTvState {
 
   const reload = useCallback(() => setReloadCount((count) => count + 1), [])
 
+  /**
+   * The same reload, with a note saying the reader asked for it.
+   *
+   * The note is written from inside the updater because that is the only place
+   * that knows which count this reload is: `reloadCount` is state, and reading
+   * it here would pin the callback to a render.
+   */
+  const refresh = useCallback(() => {
+    setRefreshing(true)
+    setReloadCount((count) => {
+      refreshWanted.current = { count: count + 1, page: pageNumber }
+      return count + 1
+    })
+  }, [pageNumber])
+
   // No polling. Refetch only when the reader comes back to a stale page.
   useEffect(() => {
     const onVisibilityChange = () => {
@@ -361,8 +434,11 @@ export function useTextTv(): TextTvState {
     next: held.current.next,
     contentFor,
     stale,
+    refreshing,
+    markId,
     updatedAt,
     navigate,
     reload,
+    refresh,
   }
 }
