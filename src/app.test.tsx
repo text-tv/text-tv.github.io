@@ -1119,6 +1119,107 @@ describe('svepet följer fingret', () => {
 })
 
 
+describe('fliken göms mitt i fjädringen', () => {
+  /**
+   * happy-dom derives nothing: the state has to be planted and the event
+   * dispatched by hand.
+   */
+  const hide = () => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+
+  afterEach(() => {
+    // Back to the prototype's own 'visible', which the tests elsewhere in this
+    // file dispatch a bare visibilitychange against.
+    Reflect.deleteProperty(document, 'visibilityState')
+  })
+
+  const commitSwipe = () => {
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 380, 300, 50)
+    fire(container(), 'pointerup', 380, 300, 50)
+  }
+
+  it('slutför sidbytet som fjädringen bar på', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    commitSwipe()
+    expect(track().style.transition).not.toBe('')
+
+    // A hidden tab may deliver neither transitionend nor transitioncancel, so
+    // the commit would sit queued for ever and the sheet stay parked.
+    hide()
+
+    await currentPage('105')
+    expect(track().style.transform).toBe('')
+    expect(track().style.transition).toBe('')
+  })
+
+  it('låter en sen övergång inte röra arket innan den nya sidan har renderats', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    commitSwipe()
+    const out = 'translate3d(calc(-100% - 14px), 0, 0)'
+    hide()
+
+    // The transition the browser withheld can still arrive, and the sheet is
+    // held out on purpose until the hash lands.
+    snapEnds()
+    expect(track().style.transform).toBe(out)
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+
+    await currentPage('105')
+  })
+
+  it('fjädrar tillbaka fingret som fortfarande ligger kvar', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 440, 300, 50)
+    await waitFor(() => expect(sheets()).toHaveLength(3))
+
+    hide()
+
+    expect(track().style.transform).toBe('')
+    expect(track().style.transition).toBe('')
+    await waitFor(() => expect(sheets()).toHaveLength(1))
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  it('städar undan en fjädring som inte bar på något sidbyte', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 480, 300, 1000)
+    fire(container(), 'pointerup', 480, 300, 1000)
+    expect(track().style.transition).toBe('transform 300ms cubic-bezier(.22,1,.36,1)')
+
+    hide()
+
+    expect(track().style.transform).toBe('')
+    expect(track().style.transition).toBe('')
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  it('gör ingenting när ingenting är i rörelse', async () => {
+    openOn('104')
+    await drawnFrames(1)
+
+    hide()
+
+    await settled()
+    expect(track().style.transform).toBe('')
+    expect(sheets()).toHaveLength(1)
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+})
+
 describe('grannarna vid sidan om', () => {
   const sheetFor = (pageNumber: string) =>
     sheets().find((sheet) => sheet.dataset.page === pageNumber)!

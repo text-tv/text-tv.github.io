@@ -259,6 +259,10 @@ export function useSwipeNavigation({
         latest.current.navigate(commit.page)
         return
       }
+      // A commit that already settled owns the track until its render lands:
+      // the offset is held on purpose, and clearing it here would paint the
+      // outgoing page snapped back to centre.
+      if (swapped.current) return
       // A cancelled snap changes no page, so nothing else will clear the track.
       const moving = track.current
       if (moving) {
@@ -326,6 +330,24 @@ export function useSwipeNavigation({
 
     const onBlur = () => endGesture(true)
 
+    /**
+     * A hidden tab may deliver neither transitionend nor transitioncancel, so
+     * whatever was in flight has to be finished by hand rather than left frozen
+     * at the commit offset with the page change never made. Blur is no help:
+     * the finger has already lifted by then, and endGesture returns.
+     */
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') return
+      // A snap is in flight exactly when the track carries a transition - the
+      // same test a new grab uses. queued alone would miss a cancel snap.
+      if (!gesture.current && !track.current?.style.transition) return
+      // Together, not alone: a lifted finger makes endGesture a no-op, and a
+      // finger still down makes settle refuse the track. The pair turns a live
+      // gesture into a cancelled snap and then finishes it.
+      endGesture(true)
+      settle()
+    }
+
     element.addEventListener('pointerdown', onPointerDown, { passive: true })
     element.addEventListener('pointermove', onPointerMove, { passive: true })
     element.addEventListener('pointerup', onPointerUp, { passive: true })
@@ -335,6 +357,7 @@ export function useSwipeNavigation({
     window.addEventListener('pointerup', onPointerUp, { passive: true })
     window.addEventListener('pointercancel', onPointerCancel, { passive: true })
     window.addEventListener('blur', onBlur, { passive: true })
+    document.addEventListener('visibilitychange', onVisibilityChange, { passive: true })
     const moving = track.current
     moving?.addEventListener('transitionend', settle)
     moving?.addEventListener('transitioncancel', settle)
@@ -346,6 +369,7 @@ export function useSwipeNavigation({
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerCancel)
       window.removeEventListener('blur', onBlur)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       moving?.removeEventListener('transitionend', settle)
       moving?.removeEventListener('transitioncancel', settle)
       clearSwallow()
