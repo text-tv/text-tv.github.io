@@ -1331,9 +1331,11 @@ describe('grannarna vid sidan om', () => {
     await drawnFrames(1)
     await settled()
 
-    // 105 itself and the page beyond it. 103, two deep the other way, is not
-    // asked for: 104's payload is the only thing that names it.
-    expect(requestedPages().slice(before).sort()).toEqual(['105', '106'])
+    // Only the page beyond. 105 arrived with the prefetch seconds ago, so the
+    // commit paints it from the store instead of asking again; and 103, two
+    // deep the other way, is not asked for either - 104's payload is the only
+    // thing that names it.
+    expect(requestedPages().slice(before).sort()).toEqual(['106'])
   })
 
   // R11
@@ -1351,7 +1353,7 @@ describe('grannarna vid sidan om', () => {
     await drawnFrames(1)
     await settled()
 
-    expect(requestedPages().slice(before)).toContain('104')
+    expect(requestedPages().slice(before)).not.toContain('104')
     expect(requestedPages().slice(before)).not.toContain('105')
   })
 
@@ -1664,6 +1666,128 @@ describe('färskhet och cache', () => {
   it('säger när innehållet uppdaterades', async () => {
     openOn('100')
     expect(await screen.findByText(/^Uppdaterad \d\d:\d\d$/)).toBeInTheDocument()
+  })
+
+  /** A flick, all the way through the swap. */
+  const swipe = (dx: number) => {
+    fire(container(), 'pointerdown', 500, 300, 0)
+    fire(container(), 'pointermove', 500 + dx, 300, 50)
+    fire(container(), 'pointerup', 500 + dx, 300, 50)
+    snapEnds()
+  }
+
+  /** Moves a page's stored timestamp back past the revalidation window. */
+  const age = (pageNumber: string) => {
+    const index = JSON.parse(window.localStorage.getItem('texttv:fetched') ?? '{}')
+    index[pageNumber] = Date.now() - 5 * 60 * 1000
+    window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+  }
+
+  /** Opens 104 and waits for the prefetch to have put 105 in the store. */
+  const withNeighbourFetched = async () => {
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toContain('105'))
+    await settled()
+  }
+
+  it('hämtar inte om grannen som förhämtningen nyss lade i lagringen', async () => {
+    await withNeighbourFetched()
+    const before = requestedPages().length
+
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await settled()
+
+    expect(requestedPages().slice(before)).not.toContain('105')
+    // Kept as it stands, not repainted while something revalidates it.
+    expect(screen.getByText(/^Uppdaterad \d\d:\d\d$/)).toBeInTheDocument()
+    expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument()
+  })
+
+  it('hämtar om grannen vars kopia hunnit bli gammal', async () => {
+    await withNeighbourFetched()
+    age('105')
+    const before = requestedPages().length
+
+    holdPage('105')
+    swipe(-120)
+    await currentPage('105')
+
+    expect(await screen.findByText('Cachad · uppdaterar…')).toBeInTheDocument()
+    releasePage('105')
+    await waitFor(() =>
+      expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument(),
+    )
+    expect(requestedPages().slice(before)).toContain('105')
+  })
+
+  it('hämtar vid varje tryck på Försök igen, trots en färsk tidsstämpel', async () => {
+    // Fresh by the index, so only the reload counter can force the fetch.
+    window.localStorage.setItem('texttv:fetched', JSON.stringify({ '104': Date.now() }))
+    const asked = () => requestedPages().filter((page) => page === '104').length
+    failNextFor('104')
+    openOn('104')
+    await screen.findByText('Kunde inte hämta sidan')
+    expect(asked()).toBe(1)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Försök igen' }))
+    await waitFor(() => expect(asked()).toBe(2))
+
+    stopFailing('104')
+    await userEvent.click(screen.getByRole('button', { name: 'Försök igen' }))
+    await waitFor(() => expect(asked()).toBe(3))
+    await drawnFrames(1)
+  })
+
+  it('hämtar vid en ny start i StrictMode trots en färsk kopia i lagringen', async () => {
+    const first = '2026-08-22T08:00:00.000Z'
+    const second = '2026-08-22T09:30:00.000Z'
+    republish('100', first)
+    const { unmount } = openOn('100')
+    await screen.findByText(shownAs(first))
+    await settled()
+    unmount()
+
+    // StrictMode's mount-cleanup-mount discards the first pass's answer, so
+    // only a fetch on the second pass can put the republished copy on screen.
+    republish('100', second)
+    window.location.hash = '100'
+    render(<App />, { wrapper: StrictMode })
+
+    expect(await screen.findByText(shownAs(second))).toBeInTheDocument()
+  })
+
+  it('hämtar en sida vars tidsstämpel är färsk men vars kopia är borta', async () => {
+    // The index can outlive the page it describes: a write too big to store
+    // leaves the timestamp behind. Reading it alone would paint nothing.
+    window.localStorage.setItem('texttv:fetched', JSON.stringify({ '377': Date.now() }))
+    openOn('100')
+    await drawnFrames(1)
+
+    await userEvent.click(
+      within(screen.getByLabelText('Genvägar')).getByRole('button', { name: '377 MÅLSERVICE' }),
+    )
+
+    await currentPage('377')
+    await waitFor(() => expect(frames()[0]).toHaveTextContent('377 SVT Text'))
+  })
+
+  it('hämtar om en sida som lästes ur lagringen när fliken kommer tillbaka', async () => {
+    await withNeighbourFetched()
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await settled()
+
+    // The load that was skipped must not have left itself marked in flight,
+    // or the guard below would swallow the revalidation.
+    const before = requestedPages().length
+    age('105')
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    await waitFor(() => expect(requestedPages().slice(before)).toContain('105'))
   })
 })
 

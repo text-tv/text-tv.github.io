@@ -76,6 +76,15 @@ export function useTextTv(): TextTvState {
   /** The page a fetch is currently in flight for, if any. */
   const inFlight = useRef<PageNumber | undefined>(undefined)
   /**
+   * The page the session's first load ran for, held until that load resolves
+   * uncancelled. Compared, never consumed: StrictMode's mount-cleanup-mount
+   * cycle discards the first invocation's result, and a flag spent by then
+   * would leave a restored page painted from the store with nothing behind it.
+   */
+  const firstLoad = useRef<PageNumber | undefined>(pageNumber)
+  /** The `reloadCount` the load effect last fetched for. Compared, likewise. */
+  const fetchedForReload = useRef(-1)
+  /**
    * Pages a prefetch is in flight for. Its own set: `inFlight` holds a single
    * page number and belongs to the revalidation guard below.
    */
@@ -173,9 +182,29 @@ export function useTextTv(): TextTvState {
       setUpdatedAt(undefined)
     }
 
+    // What the store handed over may be new enough to keep as it is. Skipping
+    // is what makes a committed swipe onto a prefetched page cost nothing.
+    const keep =
+      firstLoad.current !== pageNumber &&
+      reloadCount <= fetchedForReload.current &&
+      // A fresh index entry can outlive the copy it describes - `writePage`
+      // drops a page it cannot store. Nothing on screen means fetch, always.
+      painted !== undefined &&
+      Date.now() - fetchedAt(pageNumber) < REVALIDATE_AFTER_MS
+    if (keep) {
+      // The effect claimed `inFlight` above; leaving it claimed would make the
+      // revalidation guard below short-circuit for as long as the reader stays.
+      inFlight.current = undefined
+      setStale(false)
+      setUpdatedAt(painted.kind === 'page' ? painted.updatedAt : undefined)
+      return
+    }
+    fetchedForReload.current = reloadCount
+
     void fetchPage(pageNumber).then((fresh) => {
       if (inFlight.current === pageNumber) inFlight.current = undefined
       if (cancelled) return
+      if (firstLoad.current === pageNumber) firstLoad.current = undefined
       // A transport failure must not throw away a good cached copy - that is
       // what makes the app work underground. A confirmed not-broadcast is
       // different: it is SVT's answer about the page, so it replaces the
