@@ -621,7 +621,9 @@ body {
   line-height: 1;
 }
 
-.bar__button:disabled {
+/* Unavailable either way: no such neighbour, or none named yet. */
+.bar__button:disabled,
+.bar__button[aria-disabled='true'] {
   color: #3a3a3a;
 }
 

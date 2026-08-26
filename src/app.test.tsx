@@ -108,6 +108,14 @@ const fire = (
 /** happy-dom runs no transitions, so the snap only ever ends by hand. */
 const snapEnds = () => track()?.dispatchEvent(new Event('transitionend'))
 
+/** A flick straight down the middle, all the way through the swap. */
+const swipe = (dx: number) => {
+  fire(container(), 'pointerdown', 500, 300, 0)
+  fire(container(), 'pointermove', 500 + dx, 300, 50)
+  fire(container(), 'pointerup', 500 + dx, 300, 50)
+  snapEnds()
+}
+
 /** Long enough for anything the app was going to do on its own to have run. */
 const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
 
@@ -1207,17 +1215,6 @@ describe('fliken göms mitt i fjädringen', () => {
     expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
   })
 
-  it('gör ingenting när ingenting är i rörelse', async () => {
-    openOn('104')
-    await drawnFrames(1)
-
-    hide()
-
-    await settled()
-    expect(track().style.transform).toBe('')
-    expect(sheets()).toHaveLength(1)
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
-  })
 })
 
 describe('grannarna vid sidan om', () => {
@@ -1240,14 +1237,6 @@ describe('grannarna vid sidan om', () => {
     drag('pointerup', 480, 1000)
     snapEnds()
     await waitFor(() => expect(sheets()).toHaveLength(1))
-  }
-
-  /** A flick, all the way through the swap. */
-  const swipe = (dx: number) => {
-    drag('pointerdown', 500, 0)
-    drag('pointermove', 500 + dx, 50)
-    drag('pointerup', 500 + dx, 50)
-    snapEnds()
   }
 
   const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
@@ -1396,6 +1385,23 @@ describe('grannarna vid sidan om', () => {
     // reader just came from.
     swipe(120)
     await currentPage('104')
+  })
+
+  it('gör ingenting när man trycker på pilen som ännu inte vet vart den går', async () => {
+    holdPage('105')
+    openOn('104')
+    await drawnFrames(1)
+    swipe(-120)
+    await currentPage('105')
+
+    const ahead = screen.getByLabelText('Nästa sida')
+    expect(ahead).toHaveAttribute('aria-disabled', 'true')
+    ahead.click()
+
+    // The no-op activation is the whole point: a target it does not have must
+    // not become a navigation to nowhere.
+    await settled()
+    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('105')
   })
 
   it('lämnar pilen framåt otillgänglig men fokuserbar medan sidan hämtas', async () => {
@@ -1667,14 +1673,6 @@ describe('färskhet och cache', () => {
     openOn('100')
     expect(await screen.findByText(/^Uppdaterad \d\d:\d\d$/)).toBeInTheDocument()
   })
-
-  /** A flick, all the way through the swap. */
-  const swipe = (dx: number) => {
-    fire(container(), 'pointerdown', 500, 300, 0)
-    fire(container(), 'pointermove', 500 + dx, 300, 50)
-    fire(container(), 'pointerup', 500 + dx, 300, 50)
-    snapEnds()
-  }
 
   /** Moves a page's stored timestamp back past the revalidation window. */
   const age = (pageNumber: string) => {

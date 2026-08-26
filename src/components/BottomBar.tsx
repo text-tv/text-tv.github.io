@@ -5,7 +5,7 @@ interface Props {
   pageNumber: PageNumber
   prev: PageNumber | undefined
   next: PageNumber | undefined
-  /** True while the current page's own neighbours are still on their way. */
+  /** True while the current page has not said what lies either side of it. */
   pending: boolean
   onNavigate: (pageNumber: PageNumber) => void
   onHome: () => void

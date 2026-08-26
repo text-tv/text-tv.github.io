@@ -51,6 +51,16 @@ export function App() {
       setSlot((slot) => (slot + (direction === 'next' ? 1 : SHEETS.length - 1)) % SHEETS.length),
   })
 
+  /** The current page has nothing of its own yet: still on its way. */
+  const pending = result === undefined
+  /**
+   * Whether an arrow with no target is unknown rather than absent. Only a
+   * payload can say a neighbour does not exist, so a page that failed to load
+   * names nothing either way - and an arrow the reader may be holding must not
+   * turn `disabled` under them on a transport error.
+   */
+  const neighboursUnknown = pending || result.kind === 'error'
+
   const sheetAt = (offset: number) => SHEETS[(slot + offset + SHEETS.length) % SHEETS.length]
   // The current sheet comes first: source order is free to CSS, which places
   // the sheets by `left`, but not to the reader, whose page has to be the first
@@ -65,7 +75,7 @@ export function App() {
 
   return (
     <div className="app">
-      <FreshnessBar updatedAt={updatedAt} stale={stale} pending={result === undefined} />
+      <FreshnessBar updatedAt={updatedAt} stale={stale} pending={pending} />
       <main className="content" ref={content}>
         <div
           className={dragging ? 'swipe-track swipe-track--dragging' : 'swipe-track'}
@@ -89,7 +99,7 @@ export function App() {
         pageNumber={pageNumber}
         prev={prev}
         next={next}
-        pending={result === undefined}
+        pending={neighboursUnknown}
         onNavigate={navigate}
         onHome={() => navigate(HOME_PAGE)}
       />

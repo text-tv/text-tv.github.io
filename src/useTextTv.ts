@@ -41,8 +41,10 @@ export interface TextTvState {
   pageNumber: PageNumber
   result: FetchResult | undefined
   /**
-   * The pages either side. Held through a load rather than cleared with the
-   * result, so both directions stay navigable while the next page arrives.
+   * The pages either side, held through a load rather than cleared with the
+   * result. Landing on one of them rotates the pair onto the page arrived at,
+   * so the side travelled from stays navigable and the side ahead is
+   * `undefined` until the new page's own payload names it.
    */
   prev: PageNumber | undefined
   next: PageNumber | undefined
@@ -113,6 +115,10 @@ export function useTextTv(): TextTvState {
    * being left into it is exactly what KTD12's rotation avoids.
    */
   const named = held.current
+  // `of` is included so a pair already rotated onto this page still reads as
+  // swiped to, rather than relying on what the previous render left behind.
+  // The rotation's own guard below is what makes the two StrictMode passes
+  // agree; this term keeps the reading honest if that ordering ever changes.
   const swipedTo =
     pageNumber === named.of || pageNumber === named.prev || pageNumber === named.next
   const result = found ?? (pageNumber in known || swipedTo ? undefined : carried.current)
@@ -161,6 +167,12 @@ export function useTextTv(): TextTvState {
     // Set by the cleanup below, so a slow response for a page the reader has
     // already left is dropped instead of overwriting the current one.
     let cancelled = false
+    // A first load the reader swiped away from never resolves uncancelled, so
+    // the flag below would name that page for the rest of the session and keep
+    // refetching it. Leaving the page is what retires it.
+    if (firstLoad.current !== undefined && firstLoad.current !== pageNumber) {
+      firstLoad.current = undefined
+    }
     inFlight.current = pageNumber
 
     // Paint the last-seen copy first; a restored page is never left unfetched.
@@ -195,8 +207,9 @@ export function useTextTv(): TextTvState {
       // The effect claimed `inFlight` above; leaving it claimed would make the
       // revalidation guard below short-circuit for as long as the reader stays.
       inFlight.current = undefined
+      // The timestamp the paint above set already stands; only the promise of
+      // a fetch behind it has to be taken back.
       setStale(false)
-      setUpdatedAt(painted.kind === 'page' ? painted.updatedAt : undefined)
       return
     }
     fetchedForReload.current = reloadCount
