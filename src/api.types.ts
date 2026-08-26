@@ -24,7 +24,13 @@ export interface PageResult {
   next?: PageNumber
   subPages: SubPage[]
   /** SVT's own publication time when it sends one, else the fetch time. */
-  updatedAt: number
+  /**
+   * When SVT published the contents, or `undefined` when the payload carries
+   * no publication time. Never the moment the app fetched it: the bar states
+   * how old the contents are, and a fetch time dressed as one would move
+   * every time the app revalidated a page that had not changed.
+   */
+  updatedAt: number | undefined
 }
 
 export interface NotBroadcastResult {

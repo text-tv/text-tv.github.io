@@ -96,6 +96,6 @@ export async function fetchPage(pageNumber: PageNumber): Promise<FetchResult> {
     prev,
     next,
     subPages,
-    updatedAt: publishedAt(payload.meta) ?? Date.now(),
+    updatedAt: publishedAt(payload.meta),
   } satisfies PageResult
 }

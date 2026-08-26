@@ -13,8 +13,21 @@ import {
 export const HOME_PAGE = '100'
 /** Come back within the hour and you are where you left off. */
 export const RESTORE_WINDOW_MS = 60 * 60 * 1000
-/** Returning to the foreground refetches content older than this. */
+/**
+ * Returning to the foreground refetches content older than this. Coming back
+ * to the app is the moment the reader wants what is on air now, so this stays
+ * short - shorter than the window below, which governs moving around inside a
+ * session the reader never left.
+ */
 export const REVALIDATE_AFTER_MS = 60 * 1000
+/**
+ * How old a copy already in hand may be and still be shown on arrival without
+ * a fetch behind it. Generous on purpose: swiping between pages is reading,
+ * not refreshing, and a page that reloads under the reader as they land on it
+ * is the cost this window exists to avoid. The freshness bar carries SVT's
+ * publication time, so age is disclosed rather than hidden by the wait.
+ */
+export const ARRIVAL_WINDOW_MS = 60 * 60 * 1000
 
 const hashPage = (): PageNumber | undefined => {
   const raw = window.location.hash.replace(/^#/, '')
@@ -214,7 +227,7 @@ export function useTextTv(): TextTvState {
       // would otherwise refetch a page the app fetched moments ago and is
       // already painting.
       Date.now() - Math.max(fetchedAt(pageNumber), arrived.current[pageNumber] ?? 0) <
-        REVALIDATE_AFTER_MS
+        ARRIVAL_WINDOW_MS
     if (keep) {
       // The effect claimed `inFlight` above; leaving it claimed would make the
       // revalidation guard below short-circuit for as long as the reader stays.

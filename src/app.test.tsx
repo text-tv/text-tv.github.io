@@ -19,6 +19,7 @@ import {
   releasePage,
   reframe,
   republish,
+  dropPublishTime,
   requestedPages,
   stopFailing,
   takeOffAir,
@@ -242,6 +243,18 @@ describe('länkar i bilden', () => {
 
     await currentPage('106')
     expect(window.location.hash).toBe('#106')
+  })
+
+  it('hittar inte på en tid för en sida utan publiceringstid', async () => {
+    // SVT does not stamp every page. The bar carries when the contents were
+    // published, so with nothing to carry it says nothing rather than showing
+    // the moment the app happened to fetch it.
+    dropPublishTime('104')
+    openOn('104')
+    await drawnFrames(1)
+
+    expect(screen.queryByText(/^Uppdaterad /)).not.toBeInTheDocument()
+    expect(screen.getByText('Innehåll från SVT Text')).toBeInTheDocument()
   })
 
   it('markerar länken direkt när den trycks, och släcker den igen', async () => {
@@ -1781,10 +1794,14 @@ describe('färskhet och cache', () => {
    * time passed for the store alone, which is not a thing that happens.
    */
   let clock: ReturnType<typeof vi.spyOn> | undefined
-  const letTimePass = () => {
-    const until = Date.now() + 5 * 60 * 1000
+  const letTimePass = (ms: number) => {
+    const until = Date.now() + ms
     clock = vi.spyOn(Date, 'now').mockImplementation(() => until)
   }
+  /** Past the hour a page in hand may be served for. */
+  const anHourAndAHalf = 90 * 60 * 1000
+  /** Past the minute a page is served for on returning to the foreground. */
+  const fiveMinutes = 5 * 60 * 1000
 
   afterEach(() => {
     clock?.mockRestore()
@@ -1814,9 +1831,25 @@ describe('färskhet och cache', () => {
     expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument()
   })
 
+  it('sveper in på en kopia som är några minuter gammal utan att hämta om den', async () => {
+    // Moving around inside a session is reading, not refreshing. Only the
+    // foreground return asks for something newer than a minute.
+    await withNeighbourFetched()
+    letTimePass(fiveMinutes)
+    const before = requestedPages().length
+
+    swipe(-120)
+    await currentPage('105')
+    await drawnFrames(1)
+    await settled()
+
+    expect(requestedPages().slice(before)).not.toContain('105')
+    expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument()
+  })
+
   it('hämtar om grannen vars kopia hunnit bli gammal', async () => {
     await withNeighbourFetched()
-    letTimePass()
+    letTimePass(anHourAndAHalf)
     const before = requestedPages().length
 
     holdPage('105')
@@ -1892,7 +1925,7 @@ describe('färskhet och cache', () => {
     // The load that was skipped must not have left itself marked in flight,
     // or the guard below would swallow the revalidation.
     const before = requestedPages().length
-    letTimePass()
+    letTimePass(fiveMinutes)
     document.dispatchEvent(new Event('visibilitychange'))
 
     await waitFor(() => expect(requestedPages().slice(before)).toContain('105'))

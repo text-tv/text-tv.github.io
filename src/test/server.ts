@@ -32,6 +32,13 @@ export const republish = (pageNumber: string, updated: string): void => {
   captured.set(pageNumber, { ...body, data: { ...body.data, meta: { updated } } })
 }
 
+/** Serves a page the way SVT serves one it gives no publication time for. */
+export const dropPublishTime = (pageNumber: string): void => {
+  const body = captured.get(pageNumber) as { data: Record<string, unknown> }
+  const { meta: _meta, ...data } = body.data
+  captured.set(pageNumber, { ...body, data })
+}
+
 /**
  * Republishes a page carrying another page's frame, under its own sub-page
  * numbers - the way SVT rolls a live page over while the app is showing it.
