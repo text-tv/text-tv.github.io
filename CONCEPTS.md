@@ -12,6 +12,12 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 **Not broadcast** — a page number that exists in the numbering but carries no content right now. It is a normal, expected answer rather than an error, and the upstream service reports it with a successful response, so success is decided by the payload rather than by the transport.
 
+## Fetching and freshness
+
+**Prefetch** — fetching the pages either side of the one being read before the reader asks for them, so a sideways drag reveals a drawn sheet rather than a loading one. It reaches exactly one page in each direction, and after a page change only one further in the direction of travel, because a page's neighbours are named by that page's own payload and nothing else knows them. A prefetch is a convenience and never costs the reader a page they visited: it is dropped rather than allowed to evict a stored page, and one that fails is discarded rather than kept as an answer about the page.
+
+**Freshness window** — how long a stored copy may be shown without asking the upstream service again. One window answers that question wherever it is asked, whether the reader has just brought the app back to the foreground or has just arrived on the page, so the two cannot drift apart. Two cases ignore it: the first load after the app opens, so a restored page is never left unfetched, and an explicit reload. Within the window a page is served with no request behind it and reads exactly as a freshly fetched one, because the time shown against a page is when its contents were published rather than when they were fetched.
+
 ## The character grid
 
 **Cell** — one character position in a frame. A frame is a fixed grid of them, and every cell holds one background colour, one foreground colour, and a bitmap saying which pixels are which. Teletext's palette is eight colours and colour is set per cell, which is why a run of same-coloured cells is the natural unit to draw.
