@@ -93,6 +93,13 @@ export function useTextTv(): TextTvState {
   const prefetching = useRef(new Set<PageNumber>())
   /** A prefetch that lands after the app is gone must not touch the store. */
   const live = useRef(true)
+  /**
+   * When each held page's payload actually arrived, kept beside `known` rather
+   * than read back from the store. The store is allowed to refuse a write - a
+   * prefetch never evicts, and there may be no storage at all - and a page the
+   * app is holding is no less fresh for not having been written down.
+   */
+  const arrived = useRef<Record<PageNumber, number>>({})
   const latest = useRef<Known>(known)
   latest.current = known
   /** What the current sheet last drew, for the carry-over below. */
@@ -202,7 +209,12 @@ export function useTextTv(): TextTvState {
       // A fresh index entry can outlive the copy it describes - `writePage`
       // drops a page it cannot store. Nothing on screen means fetch, always.
       painted !== undefined &&
-      Date.now() - fetchedAt(pageNumber) < REVALIDATE_AFTER_MS
+      // Whichever record is newer. The store answers 0 for a page it refused
+      // to keep, and for every page when there is no storage to read, which
+      // would otherwise refetch a page the app fetched moments ago and is
+      // already painting.
+      Date.now() - Math.max(fetchedAt(pageNumber), arrived.current[pageNumber] ?? 0) <
+        REVALIDATE_AFTER_MS
     if (keep) {
       // The effect claimed `inFlight` above; leaving it claimed would make the
       // revalidation guard below short-circuit for as long as the reader stays.
@@ -226,6 +238,7 @@ export function useTextTv(): TextTvState {
         setStale(false)
         return
       }
+      arrived.current[pageNumber] = Date.now()
       setKnown((known) => ({ ...known, [pageNumber]: fresh }))
       setStale(false)
       if (fresh.kind === 'page') {
@@ -264,8 +277,10 @@ export function useTextTv(): TextTvState {
       // "Hämtar…", and committing onto the page takes the ordinary load path,
       // where the reader gets the page's own error and a retry.
       if (fresh.kind === 'error') return
+      const now = Date.now()
+      arrived.current[target] = now
       setKnown((known) => ({ ...known, [target]: fresh }))
-      if (fresh.kind === 'page') writePage(target, fresh, Date.now(), 'prefetch')
+      if (fresh.kind === 'page') writePage(target, fresh, now, 'prefetch')
     })
   }, [])
 

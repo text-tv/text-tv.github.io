@@ -1767,11 +1767,22 @@ describe('färskhet och cache', () => {
   })
 
   /** Moves a page's stored timestamp back past the revalidation window. */
-  const age = (pageNumber: string) => {
-    const index = JSON.parse(window.localStorage.getItem('texttv:fetched') ?? '{}')
-    index[pageNumber] = Date.now() - 5 * 60 * 1000
-    window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
+  /**
+   * Moves the clock past the revalidation window rather than backdating one
+   * record of when a page was fetched. The app keeps two - the store's index
+   * and what it is holding in memory - and ageing only the first states that
+   * time passed for the store alone, which is not a thing that happens.
+   */
+  let clock: ReturnType<typeof vi.spyOn> | undefined
+  const letTimePass = () => {
+    const until = Date.now() + 5 * 60 * 1000
+    clock = vi.spyOn(Date, 'now').mockImplementation(() => until)
   }
+
+  afterEach(() => {
+    clock?.mockRestore()
+    clock = undefined
+  })
 
   /** Opens 104 and waits for the prefetch to have put 105 in the store. */
   const withNeighbourFetched = async () => {
@@ -1798,7 +1809,7 @@ describe('färskhet och cache', () => {
 
   it('hämtar om grannen vars kopia hunnit bli gammal', async () => {
     await withNeighbourFetched()
-    age('105')
+    letTimePass()
     const before = requestedPages().length
 
     holdPage('105')
@@ -1874,7 +1885,7 @@ describe('färskhet och cache', () => {
     // The load that was skipped must not have left itself marked in flight,
     // or the guard below would swallow the revalidation.
     const before = requestedPages().length
-    age('105')
+    letTimePass()
     document.dispatchEvent(new Event('visibilitychange'))
 
     await waitFor(() => expect(requestedPages().slice(before)).toContain('105'))
@@ -1947,6 +1958,26 @@ describe('när lagringen är full', () => {
     // The prefetch gets none of it and gives up instead.
     const survivors = pages.filter((p) => entries.has(`texttv:page:${p}`))
     expect(survivors).toHaveLength(pages.length - 3)
+  })
+
+  it('sveper in en förhämtad granne utan att hämta om den, även när lagringen är full', async () => {
+    // The store refuses every page write, so the prefetch lands in memory and
+    // nowhere else - which is the state a phone that has been read on for a
+    // while is actually in. Freshness must not depend on the write landing.
+    useFullStore({})
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages()).toContain('105'))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const before = requestedPages().length
+    swipe(-120)
+    await currentPage('105')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    // 105 arrived seconds ago and is on screen. Asking for it again is the
+    // refetch the prefetch existed to avoid.
+    expect(requestedPages().slice(before)).not.toContain('105')
   })
 
   it('offrar inte hela cachen för en sida som ändå inte får plats', async () => {
