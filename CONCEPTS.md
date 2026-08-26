@@ -18,6 +18,10 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 **Freshness window** — how long a copy already in hand may be shown without asking the upstream service again. There are two, because the question is asked at two different moments. Arriving on a page mid-session gets a generous window: swiping between pages is reading rather than refreshing, and a page that reloads under the reader as they land on it is the cost the window exists to avoid. Returning to the app after being away gets a short one, because that is when the reader wants what is on air now. Two cases ignore both: the first load after the app opens, so a restored page is never left unfetched, and an explicit reload. Within a window a page is served with no request behind it, and its age is disclosed rather than concealed — the time shown against a page is when its contents were published, never when it was fetched, and a page the upstream service gives no publication time for shows none.
 
+**Refresh** — asking the upstream service for a page again because the reader said so, rather than because the app decided the copy it holds has aged. The request is the same one a revalidation makes; the difference is what the reader is shown, since a refresh is the only wait they are deliberately standing over, and so the only one worth colouring, dimming a control for, or holding a gesture open through. A refresh ignores both freshness windows, because a reader who asks has already decided the copy in hand is not good enough.
+
+**Change mark** — a mark against a row whose content came back different from the copy that was on screen. Marks are a real comparison of what the rows draw, never an inference that a fetch must have changed something, so a refresh that brings back the same page marks nothing at all. They answer a question the reader asked, which is why only a refresh produces them and a revalidation never does, and they fade rather than persisting: they describe one moment of change, not a property of the page.
+
 ## The character grid
 
 **Cell** — one character position in a frame. A frame is a fixed grid of them, and every cell holds one background colour, one foreground colour, and a bitmap saying which pixels are which. Teletext's palette is eight colours and colour is set per cell, which is why a run of same-coloured cells is the natural unit to draw.
@@ -42,6 +46,12 @@ A snap is interruptible. A finger landing while one is running takes it over —
 
 **Sheet** — one page as a single movable surface. Reading gestures act on sheets rather than on pages: a sideways drag slides the current sheet aside and the neighbouring one in, separated by a black gutter so the two never read as one continuous surface. A page is what is being read; a sheet is the thing that moves while the reader changes which page that is.
 
+**Pull** — a downward drag from the top of a page, which asks for that page again if it is released far enough. It is the other thing a reading gesture can be: the axis a drag locks to decides whether it changes the page or pulls, and once locked it cannot become the other. A pull is offered only where there is nothing to scroll back to, so it never competes with reading down a long page, and it is refused while a refresh is already running.
+
+**Strip** — the band a pull reveals above the page, which says what the release will do and then what it is doing. It belongs to the gesture rather than to the fetch: asking for the page by any other means leaves it closed, because it is the thing the finger dragged into view.
+
 ## Flagged ambiguities
+
+- "Refresh" and "revalidation" are both the app asking for a page it already holds. A **refresh** is the reader's request and a **revalidation** is the app's own; they are never used interchangeably, because almost everything the reader sees turns on which one is running.
 
 - "Gutter" named two different things once sheets could move. The **edge gutter** is the dead strip at the screen's sides where the app declines the drag to the operating system; the gap between two sheets is just the gutter, and it is a matter of drawing rather than of gestures. Neither is the other, and the qualified name is the one to use when both are in play.
