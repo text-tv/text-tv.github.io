@@ -366,12 +366,15 @@ export function useTextTv(): TextTvState {
 
     return () => {
       cancelled = true
-      // Guarded, because `reloadCount` is a dependency: the very act of asking
-      // for a refresh tears this effect down and rebuilds it. The run being
-      // cleaned up here is the one *before* the refresh, whose `readerAsked` is
-      // false, so the flag the reader just raised survives. A page change
-      // during the refresh does reach this with it true, and clears it.
-      if (readerAsked) {
+      // Guarded twice, because `reloadCount` is a dependency: the very act of
+      // asking for a refresh tears this effect down and rebuilds it. Usually
+      // the run cleaned up here is the one *before* the refresh, whose
+      // `readerAsked` is false. A second refresh in a row is the exception -
+      // the run being replaced is itself a reader's - so the note is read
+      // again: `refresh` has already moved it on to the next count, and only a
+      // note still naming this run means nobody is waiting any more. A page
+      // change during a refresh retires the note, and so clears the flag.
+      if (readerAsked && refreshWanted.current?.count === reloadCount) {
         // Straight down, not held: see settleRefresh.
         window.clearTimeout(holding.current)
         setRefreshing(false)

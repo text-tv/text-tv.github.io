@@ -2342,6 +2342,28 @@ describe('uppdatera sidan', () => {
       })
     })
 
+    // The second refresh in a row raises the same flag the first one did, and
+    // the run being torn down by the bump must not take it back down with it.
+    it('visar hämtningen lika tydligt andra gången i rad', async () => {
+      openOn('104')
+      await drawnFrames(1)
+
+      await userEvent.click(refreshButton())
+      await waitFor(() => expect(refreshButton()).not.toHaveAttribute('aria-disabled'), {
+        timeout: 2000,
+      })
+
+      await userEvent.click(refreshButton())
+
+      expect(status()).toHaveTextContent('Hämtar…')
+      expect(status()).toHaveClass('freshness__status--refreshing')
+      expect(refreshButton()).toHaveAttribute('aria-disabled', 'true')
+
+      await waitFor(() => expect(refreshButton()).not.toHaveAttribute('aria-disabled'), {
+        timeout: 2000,
+      })
+    })
+
     it('håller remsan kvar efter en dragning fast sidan svarade genast', async () => {
       openOn('104')
       await drawnFrames(1)
