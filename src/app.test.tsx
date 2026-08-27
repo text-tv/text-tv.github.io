@@ -1865,6 +1865,31 @@ describe('färskhet och cache', () => {
     expect(requestedPages().slice(before)).toContain('105')
   })
 
+  it('friskar upp grannen från en tidigare session innan man sveper dit', async () => {
+    // The store outlives the session, so the copy a new session finds there is
+    // typically hours old. Painting it and leaving it would pass the reader a
+    // page that refetches the moment they land on it.
+    const { unmount } = openOn('104')
+    await drawnFrames(1)
+    await settled()
+    unmount()
+
+    letTimePass(anHourAndAHalf)
+    const before = requestedPages().length
+    openOn('104')
+    await drawnFrames(1)
+    await waitFor(() => expect(requestedPages().slice(before)).toContain('105'))
+    await settled()
+
+    const arriving = requestedPages().length
+    swipe(-120)
+    await currentPage('105')
+
+    expect(screen.queryByText('Cachad · uppdaterar…')).not.toBeInTheDocument()
+    await settled()
+    expect(requestedPages().slice(arriving)).not.toContain('105')
+  })
+
   it('hämtar vid varje tryck på Försök igen, trots en färsk tidsstämpel', async () => {
     // Fresh by the index, so only the reload counter can force the fetch.
     window.localStorage.setItem('texttv:fetched', JSON.stringify({ '104': Date.now() }))

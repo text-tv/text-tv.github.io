@@ -29,6 +29,17 @@ export const REVALIDATE_AFTER_MS = 60 * 1000
  */
 export const ARRIVAL_WINDOW_MS = 60 * 60 * 1000
 /**
+ * How much of the window above a stored copy must have left for a prefetch to
+ * hand it over unfetched.
+ *
+ * A neighbour is resolved when the reader lands on the page beside it, and
+ * swiped to whenever they are ready - a page later, or several minutes of
+ * reading later. A copy already close to ageing out would pass the prefetch
+ * and then fail the same test on arrival, refetching under the reader with the
+ * page already on screen. That is the repaint this margin exists to avoid.
+ */
+const PREFETCH_MARGIN_MS = 5 * 60 * 1000
+/**
  * The shortest time a refresh is allowed to *look* like it is running.
  *
  * A page already in the store, or one SVT answers for immediately, can settle
@@ -370,16 +381,20 @@ export function useTextTv(): TextTvState {
   }, [pageNumber, reloadCount, settleRefresh])
 
   /**
-   * Resolves one neighbour, from the store when it is there and from the
-   * network otherwise. Never touches the current page's own state, so a
-   * gesture never waits on it.
+   * Resolves one neighbour: from the store when it holds a copy good for the
+   * arrival still ahead of it, and from the network otherwise. Never touches
+   * the current page's own state, so a gesture never waits on it.
    */
   const prefetch = useCallback((target: PageNumber) => {
     if (latest.current[target] || prefetching.current.has(target)) return
     const cached = readPage(target)
     if (cached) {
       setKnown((known) => ({ ...known, [target]: cached.result }))
-      return
+      // Painted either way; kept as the final word only while it is new enough
+      // to survive the arrival test as well. A copy from an earlier session is
+      // typically hours old, and stopping here would leave every page the
+      // reader swipes into refetching the moment it lands.
+      if (Date.now() - cached.fetchedAt < ARRIVAL_WINDOW_MS - PREFETCH_MARGIN_MS) return
     }
     prefetching.current.add(target)
     void fetchPage(target).then((fresh) => {
