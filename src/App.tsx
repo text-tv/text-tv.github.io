@@ -71,30 +71,14 @@ export function App() {
    * `dragging` it follows the commit distance, not the mere presence of a drag.
    */
   const [armed, setArmed] = useState(false)
-  /** True while the keypad is up: the chrome rides above it, the pull is off. */
-  const [editing, setEditing] = useState(false)
   /** Which of SHEETS is the current page; a commit rotates it. */
   const [slot, setSlot] = useState(0)
-
-  /**
-   * Every way of leaving the page except the field's own commit. The keypad is
-   * put away here rather than off the page number, because a control can be
-   * pressed without the page changing at all - home while already on 100, a
-   * rail link to the page being read - and a keypad left standing over that
-   * would hold digits the reader can no longer commit and would take the
-   * keyboard's Escape with it.
-   */
-  const go = (page: PageNumber) => {
-    setEditing(false)
-    navigate(page)
-  }
 
   /**
    * Both entry points come through here, so the strip always names the page
    * the running fetch is for even after the reader swipes on to another one.
    */
   const startRefresh = () => {
-    setEditing(false)
     setFetchingPage(pageNumber)
     refresh()
   }
@@ -109,8 +93,7 @@ export function App() {
     next,
     motion,
     refreshing,
-    editing,
-    navigate: go,
+    navigate,
     onDragging: setDragging,
     onArmed: setArmed,
     onSwap: (direction) =>
@@ -185,32 +168,25 @@ export function App() {
                 result={contentFor(sheet.pageNumber)}
                 place={sheet.place}
                 markId={markId}
-                onNavigate={go}
+                onNavigate={navigate}
                 onRetry={reload}
               />
             ))}
           </div>
         </div>
       </main>
-      {/*
-        The rail, the bar and the keypad move as one band: the keypad sits
-        below the shell's bottom edge and the whole dock slides up to bring it
-        into view, which is one transform rather than two that have to agree.
-      */}
-      <div className={editing ? 'dock dock--editing' : 'dock'}>
-        <QuickLinks current={pageNumber} onNavigate={go} />
-        <BottomBar
-          pageNumber={pageNumber}
-          prev={prev}
-          next={next}
-          armed={armed}
-          pending={neighboursUnknown}
-          refreshing={refreshing}
-          onNavigate={go}
-          onHome={() => go(HOME_PAGE)}
-          onRefresh={startRefresh}
-        />
-      </div>
+      <QuickLinks current={pageNumber} onNavigate={navigate} />
+      <BottomBar
+        pageNumber={pageNumber}
+        prev={prev}
+        next={next}
+        armed={armed}
+        pending={neighboursUnknown}
+        refreshing={refreshing}
+        onNavigate={navigate}
+        onHome={() => navigate(HOME_PAGE)}
+        onRefresh={startRefresh}
+      />
     </div>
   )
 }

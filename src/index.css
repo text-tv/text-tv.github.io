@@ -21,13 +21,6 @@
 :root {
   --bar-height: 56px;
   --rail-height: 44px;
-  /*
-   * How far the dock rides up, and how tall the keypad is: one number, because
-   * the two have to be the same or the pad lands short of the screen edge.
-   * Tuned at 390x844; a short device may yet want a proportion of the viewport
-   * with a floor near 200px, which is a change to this line and nothing else.
-   */
-  --keypad-height: 236px;
   --freshness-height: 26px;
   /* Both the strip's height and where the track parks during the fetch. */
   --pull-strip-height: 44px;
@@ -53,7 +46,7 @@
    *
    * 560px was the old fixed cap and is the floor now, so the budget can only
    * ever make the column wider than it used to be. Without it a short viewport
-   * - a landscape phone, or a portrait one with the keypad up - would compute a
+   * - a landscape phone, or a portrait one with the keyboard up - would compute a
    * column narrower than the type can be read at, and one shorter than the
    * chrome would clamp to zero and blank the page. Reading a tall page by
    * scrolling is what those screens did before and is the better answer.
@@ -924,109 +917,3 @@ body {
   color: var(--dim);
 }
 
-/*
- * Three digits and nothing else. It sits below the shell's bottom edge and is
- * revealed by the dock sliding up, so it is out of the page's flow entirely -
- * the page behind is neither resized nor scrolled when it opens.
- *
- * The grid's own background shows through the 1px gaps as hairline rules, and
- * padding-top gives the first row the rule it would otherwise lack. The rows
- * divide the height evenly, which is what keeps every key over the 44px a
- * thumb needs.
- */
-.keypad {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-auto-rows: 1fr;
-  gap: 1px;
-  padding-top: 1px;
-  /*
-   * The inset is added to the height rather than taken out of it: the boxes are
-   * border-box, so naming the height alone would keep the pad at 236px while
-   * the dock above travelled 236px *plus* the inset, and the difference would
-   * open as a strip of page below the bottom key row.
-   */
-  padding-bottom: env(safe-area-inset-bottom);
-  height: calc(var(--keypad-height) + env(safe-area-inset-bottom));
-  background: #1c1c1c;
-  border-top: 1px solid #1c1c1c;
-  /* The pad is not a scroll surface; a drag on the keys moves nothing. */
-  touch-action: none;
-}
-
-.keypad__key {
-  border: 0;
-  background: #000;
-  color: var(--ink);
-  font: inherit;
-  font-size: 26px;
-  line-height: 1;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/*
- * Words, not `x` and a backspace glyph: the same font-fallback argument the
- * bar's drawn arrows make. The two read differently on purpose - abandoning
- * the whole entry is the louder of the two.
- */
-.keypad__key--cancel,
-.keypad__key--erase {
-  font-size: 15px;
-}
-
-.keypad__key--cancel {
-  color: #00ffff;
-}
-
-.keypad__key--erase {
-  color: var(--dim);
-}
-
-.keypad__key:active {
-  background: #1a1a1a;
-}
-
-/*
- * Present to a screen reader, absent to the eye. Not `display: none`, which
- * would take it out of the accessibility tree as well, and clipped rather than
- * moved off-screen so scrolling it into view moves nothing.
- */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/*
- * The rail, the bar and the keypad, as one band. The keypad hangs below the
- * shell; sliding the whole dock up by exactly its height is what brings it into
- * view, and is one transform where a bar and a pad moving separately would be
- * two that have to agree. Relative so the keypad's own `top: 100%` resolves
- * against this band, and non-shrinking because the rail and the bar carried
- * that themselves before they were wrapped.
- */
-.dock {
-  position: relative;
-  flex: 0 0 auto;
-  transition: transform 220ms cubic-bezier(0.32, 0.94, 0.28, 1);
-}
-
-.dock--editing {
-  transform: translateY(calc(-1 * (var(--keypad-height) + env(safe-area-inset-bottom))));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dock {
-    transition: none;
-  }
-}

@@ -526,6 +526,7 @@ describe('knapparna längst ned', () => {
     await userEvent.click(pageField())
 
     expect(document.querySelector('.keypad')).toBeNull()
+    expect(document.querySelector('.dock')).toBeNull()
   })
 })
 
