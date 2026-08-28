@@ -21,6 +21,13 @@
 :root {
   --bar-height: 56px;
   --rail-height: 44px;
+  /*
+   * How far the dock rides up, and how tall the keypad is: one number, because
+   * the two have to be the same or the pad lands short of the screen edge.
+   * Tuned at 390x844; a short device may yet want a proportion of the viewport
+   * with a floor near 200px, which is a change to this line and nothing else.
+   */
+  --keypad-height: 236px;
   --freshness-height: 26px;
   /* Both the strip's height and where the track parks during the fetch. */
   --pull-strip-height: 44px;
@@ -734,49 +741,126 @@ body {
 /*
  * The controls follow the reading column; the bar's black spans the viewport.
  *
- * The gaps are this tight on purpose: six controls - the keypad, three glyphs
- * either side of the page number, and the number itself - do not fit a 390px
- * bar at the 8px gap and 12px padding this used to carry. The keypad's own
- * narrowing below is part of the same measurement. Widening either puts the
- * next arrow off the edge on the smallest phone the app targets.
+ * Three children, not six: the arrows are pushed to the ends of the row by
+ * space-between and everything that acts on *this* page is grouped in the
+ * middle. The old run of five evenly-spread controls needed a 2px gap to fit a
+ * 390px bar at all, and this shape has room to spare at the design's 6px.
  */
 .bar__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 2px;
   width: 100%;
   max-width: var(--frame-max);
-  padding: 0 10px;
-}
-
-.bar__input {
-  width: 3.8em;
-  height: 40px;
   padding: 0 6px;
-  border: 1px solid var(--dim);
-  border-radius: 6px;
-  background: #000;
-  color: var(--ink);
-  font: inherit;
-  font-size: 18px;
-  text-align: center;
 }
 
+.bar__centre {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/*
+ * The arrows and the house are drawn rather than typed. A teletext arrow would
+ * be a mosaic, and the obvious glyphs for these - the triangles and the house -
+ * fall back to emoji or to tofu on common Android and Windows font stacks. Only
+ * the refresh glyph renders reliably everywhere, so it is the only one left as
+ * text.
+ *
+ * Colour reaches a drawn shape through its border, not through `color`, so the
+ * disabled rules below target the glyph rather than the button.
+ */
+.bar__arrow,
 .bar__button {
-  min-width: 44px;
-  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
+  padding: 0;
   background: transparent;
   color: var(--ink);
   font-size: 22px;
   line-height: 1;
 }
 
+.bar__arrow {
+  width: 52px;
+  height: 52px;
+}
+
+.bar__button {
+  width: 48px;
+  height: 48px;
+}
+
+.bar__glyph {
+  display: block;
+  position: relative;
+}
+
+.bar__glyph--prev,
+.bar__glyph--next {
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+}
+
+.bar__glyph--prev {
+  border-right: 12px solid var(--ink);
+}
+
+.bar__glyph--next {
+  border-left: 12px solid var(--ink);
+}
+
+/* A roof and a body, which is as much house as 20x17 has room for. */
+.bar__glyph--home {
+  width: 20px;
+  height: 17px;
+}
+
+.bar__glyph--home::before,
+.bar__glyph--home::after {
+  content: '';
+  position: absolute;
+}
+
+.bar__glyph--home::before {
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 9px solid var(--ink);
+}
+
+.bar__glyph--home::after {
+  left: 4px;
+  top: 9px;
+  width: 12px;
+  height: 8px;
+  background: var(--ink);
+}
+
 /* Unavailable either way: no such neighbour, or none named yet. */
+.bar__arrow:disabled,
+.bar__arrow[aria-disabled='true'],
 .bar__button:disabled,
 .bar__button[aria-disabled='true'] {
   color: #3a3a3a;
+}
+
+.bar__arrow:disabled .bar__glyph--prev,
+.bar__arrow[aria-disabled='true'] .bar__glyph--prev {
+  border-right-color: #3a3a3a;
+}
+
+.bar__arrow:disabled .bar__glyph--next,
+.bar__arrow[aria-disabled='true'] .bar__glyph--next {
+  border-left-color: #3a3a3a;
 }
 
 /*
@@ -789,18 +873,154 @@ body {
   transition: color 140ms linear;
 }
 
-.bar__page {
-  font-size: 20px;
+/*
+ * The page you are on and the page you are asking for, in one place. It reads
+ * as a number until it is tapped, so the underline is all the affordance it
+ * carries at rest; no radius anywhere, because teletext has no rounded corners.
+ */
+.bar__page-field {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid #2b2b2b;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
-  transition: color 120ms linear;
+  transition:
+    color 120ms linear,
+    border-color 140ms linear;
 }
 
 /*
- * The swipe is far enough along to change the page, so the number below it is
- * about to be wrong. It says so by going quiet rather than by naming the page
- * ahead: the drag can still be abandoned, and a number that changed and then
- * changed back would read as the app losing its place.
+ * The swipe is far enough along to change the page, so the number is about to
+ * be wrong. It says so by going quiet rather than by naming the page ahead:
+ * the drag can still be abandoned, and a number that changed and then changed
+ * back would read as the app losing its place.
  */
-.bar__page--armed {
+.bar__page-field--armed {
   color: #8a8a8a;
+}
+
+.bar__page-field--editing {
+  color: #ffff00;
+  border-bottom-color: #ffff00;
+}
+
+/*
+ * Two pixels of block rather than a text caret: the field holds no text node
+ * for a real caret to sit in, and the block is the shape teletext would draw.
+ */
+.bar__caret {
+  width: 2px;
+  height: 24px;
+  margin-left: 2px;
+  background: #ffff00;
+}
+
+/*
+ * Three digits and nothing else. It sits below the shell's bottom edge and is
+ * revealed by the dock sliding up, so it is out of the page's flow entirely -
+ * the page behind is neither resized nor scrolled when it opens.
+ *
+ * The grid's own background shows through the 1px gaps as hairline rules, and
+ * padding-top gives the first row the rule it would otherwise lack. The rows
+ * divide the height evenly, which is what keeps every key over the 44px a
+ * thumb needs.
+ */
+.keypad {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 1px;
+  padding-top: 1px;
+  padding-bottom: env(safe-area-inset-bottom);
+  height: var(--keypad-height);
+  background: #1c1c1c;
+  border-top: 1px solid #1c1c1c;
+  /* The pad is not a scroll surface; a drag on the keys moves nothing. */
+  touch-action: none;
+}
+
+.keypad__key {
+  border: 0;
+  background: #000;
+  color: var(--ink);
+  font: inherit;
+  font-size: 26px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Words, not `x` and a backspace glyph: the same font-fallback argument the
+ * bar's drawn arrows make. The two read differently on purpose - abandoning
+ * the whole entry is the louder of the two.
+ */
+.keypad__key--cancel,
+.keypad__key--erase {
+  font-size: 15px;
+}
+
+.keypad__key--cancel {
+  color: #00ffff;
+}
+
+.keypad__key--erase {
+  color: #8a8a8a;
+}
+
+.keypad__key:active {
+  background: #1a1a1a;
+}
+
+/*
+ * The rail, the bar and the keypad, as one band. The keypad hangs below the
+ * shell; sliding the whole dock up by exactly its height is what brings it into
+ * view, and is one transform where a bar and a pad moving separately would be
+ * two that have to agree. Relative so the keypad's own `top: 100%` resolves
+ * against this band, and non-shrinking because the rail and the bar carried
+ * that themselves before they were wrapped.
+ */
+/*
+ * Present to a screen reader, absent to the eye. Not `display: none`, which
+ * would take it out of the accessibility tree as well, and clipped rather than
+ * moved off-screen so scrolling it into view moves nothing.
+ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.dock {
+  position: relative;
+  flex: 0 0 auto;
+  transition: transform 220ms cubic-bezier(0.32, 0.94, 0.28, 1);
+}
+
+.dock--editing {
+  transform: translateY(calc(-1 * (var(--keypad-height) + env(safe-area-inset-bottom))));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock {
+    transition: none;
+  }
 }

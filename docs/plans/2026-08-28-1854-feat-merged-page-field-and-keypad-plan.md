@@ -71,7 +71,7 @@ The bar carries a three-digit input and a separate current-page span. They say t
 
 **Keyboard and gestures**
 
-- R20. With the field focused, `Enter` commits whatever digits are present, `Escape` closes the keypad, and hardware digit keys feed the same path as the on-screen keys.
+- R20. With the field focused, `Enter` raises the keypad, `Escape` closes it, and hardware digit keys feed the same path as the on-screen keys. `Enter` is not a confirm key: a page number is three digits, the third digit has already committed, and `navigate` refuses anything shorter (`src/useTextTv.ts:480`), so there is nothing for it to confirm.
 - R26. The field holds focus for the whole editing session. An on-screen key press does not move focus, and the keys are outside the tab order; keyboard readers use R20's direct path instead. Focus stays on the field when the keypad closes.
 - R21. While the keypad is up, the pull-to-refresh gesture is inert, and the keypad's own surface swallows pointer events.
 
@@ -221,8 +221,8 @@ U1 → U2 → U3 → U4 → U5, with U6 any time after U2. U1 lands the layout a
 - **Goal:** the field works from a hardware keyboard, keeps focus throughout, and announces what was typed.
 - **Requirements:** R10, R20, R26; KTD9.
 - **Files:** `src/components/BottomBar.tsx`, `src/components/Keypad.tsx`, `src/app.test.tsx`.
-- **Approach:** put one `onKeyDown` on the field. `Escape` closes; `Enter` commits the digits present, navigating when there is at least one and closing either way; `0`-`9` feed `press()`. Give each keypad key `onPointerDown` with `preventDefault()` and `tabIndex={-1}` so pressing one never moves focus off the field (KTD9, R26). Let the button's native space/enter activation raise the keypad when not editing, and make sure `Enter` while editing does not also re-toggle it. The live region added in U2 carries the typed value.
-- **Test scenarios:** focus the field, press `Enter`, then type `2`,`0`,`0` on the hardware keyboard and land on 200; tap an on-screen key and confirm the field still holds focus, then press `Escape` and the keypad closes; `Enter` with two digits typed commits those digits; the live region's text follows the typed digits.
+- **Approach:** put one `onKeyDown` on the field. `Escape` closes; `Enter` raises the keypad and does nothing while it is up; `0`-`9` feed `press()`. Give each keypad key `onPointerDown` with `preventDefault()` and `tabIndex={-1}` so pressing one never moves focus off the field (KTD9, R26). Let the button's native space/enter activation raise the keypad when not editing, and make sure `Enter` while editing does not also re-toggle it. The live region added in U2 carries the typed value.
+- **Test scenarios:** focus the field, press `Enter`, then type `2`,`0`,`0` on the hardware keyboard and land on 200; tap an on-screen key and confirm the field still holds focus, then press `Escape` and the keypad closes; `Enter` with two digits typed changes nothing; the live region's text follows the typed digits.
 - **Verification:** `npm test`, `npm run build`.
 
 ### U5. The keypad is inert to the pull gesture
@@ -272,6 +272,6 @@ The whole of `src/app.test.tsx` must pass, including the swipe, pull-to-refresh,
 | U1 | The control row is three flex children and the arrows and house are drawn with CSS borders; the existing arrow, home, and disabled-state tests pass unchanged. |
 | U2 | One field carries both the current page and the typed digits, its accessible name reports both, no `<input>` remains in the bar, and the migrated tests assert the new control rather than the old one. |
 | U3 | Tapping the field raises a keypad driven by `--keypad-height`, the dock slides as one, the keypad is `inert` when closed, and AE1-AE3 and AE6 pass. |
-| U4 | `Enter`, `Escape`, and hardware digits drive the same `press()` path, an on-screen press leaves focus on the field, and the live region reports the typed digits. |
+| U4 | `Escape` and hardware digits reach the field's own handler, an on-screen press leaves focus on the field, and the live region reports the typed digits. |
 | U5 | A pull past the threshold with the keypad up starts no fetch, and every existing pull test still passes. |
 | U6 | The field dims only past the commit distance and undims on every gesture end, with the commit decision itself unchanged. |

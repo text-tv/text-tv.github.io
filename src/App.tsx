@@ -71,6 +71,8 @@ export function App() {
    * `dragging` it follows the commit distance, not the mere presence of a drag.
    */
   const [armed, setArmed] = useState(false)
+  /** True while the keypad is up: the chrome rides above it, the pull is off. */
+  const [editing, setEditing] = useState(false)
   /** Which of SHEETS is the current page; a commit rotates it. */
   const [slot, setSlot] = useState(0)
 
@@ -175,18 +177,26 @@ export function App() {
           </div>
         </div>
       </main>
-      <QuickLinks current={pageNumber} onNavigate={navigate} />
-      <BottomBar
-        pageNumber={pageNumber}
-        prev={prev}
-        next={next}
-        armed={armed}
-        pending={neighboursUnknown}
-        refreshing={refreshing}
-        onNavigate={navigate}
-        onHome={() => navigate(HOME_PAGE)}
-        onRefresh={startRefresh}
-      />
+      {/*
+        The rail, the bar and the keypad move as one band: the keypad sits
+        below the shell's bottom edge and the whole dock slides up to bring it
+        into view, which is one transform rather than two that have to agree.
+      */}
+      <div className={editing ? 'dock dock--editing' : 'dock'}>
+        <QuickLinks current={pageNumber} onNavigate={navigate} />
+        <BottomBar
+          pageNumber={pageNumber}
+          prev={prev}
+          next={next}
+          armed={armed}
+          pending={neighboursUnknown}
+          refreshing={refreshing}
+          onNavigate={navigate}
+          onHome={() => navigate(HOME_PAGE)}
+          onRefresh={startRefresh}
+          onEditing={setEditing}
+        />
+      </div>
     </div>
   )
 }
