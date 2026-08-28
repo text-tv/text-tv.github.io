@@ -52,6 +52,14 @@ A snap is interruptible. A finger landing while one is running takes it over —
 
 **Strip** — the band a pull reveals above the page, which says what the release will do and then what it is doing. It belongs to the gesture rather than to the fetch: asking for the page by any other means leaves it closed, because it is the thing the finger dragged into view.
 
+## The bottom bar
+
+**Page field** — the one control that both reports the page being read and takes the page being asked for. It reads as the current number until it is tapped, at which point it becomes the entry field and shows the digits typed so far instead. There were two controls for these two jobs and they said the same thing twice; merging them means the number you are reading is the thing you tap to change it. It goes quiet — dimmed rather than replaced — while a sideways drag is far enough along to change the page, because the number is about to be wrong but the drag can still be abandoned.
+
+**Keypad** — the app's own three-digit pad, raised by the page field. It exists because a page number is three digits and nothing else: an operating-system keypad offers a keyboard's worth of answers to a question with only ten, and takes the screen on its own terms. There is no confirm key, because the third digit is the whole instruction.
+
+**Dock** — the rail, the bar and the keypad as one band at the bottom of the shell. The keypad hangs below the screen's edge and the whole dock slides up to reveal it, so the two never have to agree about where they are; the page behind is neither resized nor scrolled while it is up.
+
 ## Flagged ambiguities
 
 - "Refresh" and "revalidation" are both the app asking for a page it already holds. A **refresh** is the reader's request and a **revalidation** is the app's own; they are never used interchangeably, because almost everything the reader sees turns on which one is running.
