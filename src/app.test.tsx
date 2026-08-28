@@ -623,6 +623,22 @@ describe('knapparna längst ned', () => {
     expect(pageField()).toHaveTextContent('')
   })
 
+  // R25
+  it('stänger knappsatsen när bakåtknappen byter sida', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(screen.getByRole('button', { name: /300 SPORT/ }))
+    await currentPage('300')
+    await userEvent.click(pageField())
+    await tap('3')
+
+    // Not a control the shell ever sees: the hash changes underneath it.
+    window.history.back()
+
+    await currentPage('100')
+    await waitFor(() => expect(keypad()).toHaveAttribute('inert'))
+  })
+
   // R8
   it('visar en markör bara medan man skriver', async () => {
     openOn('100')
