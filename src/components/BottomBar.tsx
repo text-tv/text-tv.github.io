@@ -5,6 +5,11 @@ interface Props {
   pageNumber: PageNumber
   prev: PageNumber | undefined
   next: PageNumber | undefined
+  /**
+   * True while a sideways drag has passed the distance a commit needs: the
+   * page number on screen is about to be wrong.
+   */
+  armed: boolean
   /** True while the current page has not said what lies either side of it. */
   pending: boolean
   /** True while a fetch the reader asked for is in flight. */
@@ -24,6 +29,7 @@ export function BottomBar({
   pageNumber,
   prev,
   next,
+  armed,
   pending,
   refreshing,
   onNavigate,
@@ -85,7 +91,10 @@ export function BottomBar({
         >
           ◀
         </button>
-        <span className="bar__page" aria-label="Aktuell sida">
+        <span
+          className={armed ? 'bar__page bar__page--armed' : 'bar__page'}
+          aria-label="Aktuell sida"
+        >
           {pageNumber}
         </span>
         <button type="button" className="bar__button" aria-label="Startsida 100" onClick={onHome}>

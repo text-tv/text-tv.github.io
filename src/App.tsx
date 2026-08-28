@@ -65,6 +65,12 @@ export function App() {
   const [fetchingPage, setFetchingPage] = useState(pageNumber)
   /** True from the axis lock until the gesture and its snap are over. */
   const [dragging, setDragging] = useState(false)
+  /**
+   * True while a sideways drag is far enough along to change the page. The bar
+   * reads it to say the number it is showing is about to be wrong; unlike
+   * `dragging` it follows the commit distance, not the mere presence of a drag.
+   */
+  const [armed, setArmed] = useState(false)
   /** Which of SHEETS is the current page; a commit rotates it. */
   const [slot, setSlot] = useState(0)
 
@@ -89,6 +95,7 @@ export function App() {
     refreshing,
     navigate,
     onDragging: setDragging,
+    onArmed: setArmed,
     onSwap: (direction) =>
       setSlot((slot) => (slot + (direction === 'next' ? 1 : SHEETS.length - 1)) % SHEETS.length),
     onPullState: setPullState,
@@ -173,6 +180,7 @@ export function App() {
         pageNumber={pageNumber}
         prev={prev}
         next={next}
+        armed={armed}
         pending={neighboursUnknown}
         refreshing={refreshing}
         onNavigate={navigate}

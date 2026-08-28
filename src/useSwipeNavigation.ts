@@ -5,6 +5,7 @@ import {
   PULL_STRIP_PX,
   PULL_THRESHOLD_PX,
   SWIPE_GUTTER_PX,
+  SWIPE_MIN_DISTANCE,
   dampedOffset,
   lockAxis,
   pullOffset,
@@ -84,6 +85,12 @@ interface Gesture {
   tookOver: boolean
   /** Whether the strip is far enough open that a release would fetch. */
   armed: boolean
+  /**
+   * Whether a sideways drag has passed the distance a commit needs. The pull's
+   * `armed` above is the same question for the other axis; the two are separate
+   * fields because a gesture locks to one axis and never reports on both.
+   */
+  past: boolean
   /** Where the track already was: a gesture can start mid-snap. */
   origin: number
   /** Read once at pointerdown; re-reading it per move would force a layout. */
@@ -109,6 +116,11 @@ interface Options {
   refreshing: boolean
   navigate: (pageNumber: PageNumber) => void
   onDragging: (dragging: boolean) => void
+  /**
+   * The sideways drag has passed - or fallen back inside - the distance a
+   * commit needs, so the page number on screen is about to be wrong.
+   */
+  onArmed: (armed: boolean) => void
   /** Hands the current slot to the neighbour the commit landed on. */
   onSwap: (direction: 'prev' | 'next') => void
   onPullState: (state: PullState) => void
@@ -142,6 +154,7 @@ export function useSwipeNavigation({
   refreshing,
   navigate,
   onDragging,
+  onArmed,
   onSwap,
   onPullState,
   onRefresh,
@@ -169,6 +182,7 @@ export function useSwipeNavigation({
     refreshing,
     navigate,
     onDragging,
+    onArmed,
     onSwap,
     onPullState,
     onRefresh,
@@ -184,6 +198,7 @@ export function useSwipeNavigation({
       refreshing,
       navigate,
       onDragging,
+      onArmed,
       onSwap,
       onPullState,
       onRefresh,
@@ -292,6 +307,7 @@ export function useSwipeNavigation({
         startedInGutter: startsInGutter(event.clientX, window.innerWidth),
         pull: false,
         armed: false,
+        past: false,
         tookOver,
         origin,
         width: moving?.clientWidth ?? 0,
@@ -418,6 +434,16 @@ export function useSwipeNavigation({
       live.lastX = event.clientX
       live.lastAt = event.timeStamp
 
+      // The distance floor only. `swipeDirection` also commits a short flick,
+      // but from a release velocity that does not exist yet, so no mid-drag
+      // answer can be exact - and the same state-write-per-move cost the pull's
+      // label avoids applies here, which is why this fires only on a crossing.
+      const past = Math.abs(travel) >= SWIPE_MIN_DISTANCE
+      if (past !== live.past) {
+        live.past = past
+        latest.current.onArmed(past)
+      }
+
       const neighbour = travel < 0 ? latest.current.next : latest.current.prev
       const offset = live.origin + (neighbour ? travel : dampedOffset(travel, live.width))
       if (track.current) track.current.style.transform = `translate3d(${offset}px, 0, 0)`
@@ -458,6 +484,9 @@ export function useSwipeNavigation({
       const live = gesture.current
       if (!live) return
       gesture.current = undefined
+      // Whatever ends the gesture - commit, cancel, or an abort from one of the
+      // rescue listeners - the page number is no longer about to change.
+      if (live.past) latest.current.onArmed(false)
 
       if (live.pull) {
         // Measured from where the finger ended rather than from what was

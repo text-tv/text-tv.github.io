@@ -792,4 +792,15 @@ body {
 .bar__page {
   font-size: 20px;
   font-variant-numeric: tabular-nums;
+  transition: color 120ms linear;
+}
+
+/*
+ * The swipe is far enough along to change the page, so the number below it is
+ * about to be wrong. It says so by going quiet rather than by naming the page
+ * ahead: the drag can still be abandoned, and a number that changed and then
+ * changed back would read as the app losing its place.
+ */
+.bar__page--armed {
+  color: #8a8a8a;
 }

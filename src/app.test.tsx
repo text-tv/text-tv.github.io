@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { App } from './App'
+import { SWIPE_MIN_DISTANCE } from './swipe'
 import { resetDecodeCache } from './teletext/decode'
 import {
   addThreeColourCell,
@@ -579,6 +580,76 @@ describe('svep mellan sidor', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+  })
+
+  /**
+   * The drag is left open on purpose: the dimmed number is a mid-gesture state,
+   * so the lift that `swipeFrom` ends with would clear it before any assertion.
+   */
+  const dragTo = (toX: number) => {
+    const shared = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'touch', isPrimary: true }
+    const main = container()
+    main.dispatchEvent(new PointerEvent('pointerdown', { ...shared, clientX: 500, clientY: 300 }))
+    main.dispatchEvent(new PointerEvent('pointermove', { ...shared, clientX: toX, clientY: 300 }))
+    return (event: string) =>
+      main.dispatchEvent(new PointerEvent(event, { ...shared, clientX: toX, clientY: 300 }))
+  }
+
+  const pageNumberEl = () => screen.getByLabelText('Aktuell sida')
+
+  it('dämpar sidnumret när svepet gått långt nog att byta sida', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    dragTo(500 - SWIPE_MIN_DISTANCE - 10)
+
+    await waitFor(() => expect(pageNumberEl()).toHaveClass('bar__page--armed'))
+  })
+
+  it('låter sidnumret vara medan svepet är kortare än så', async () => {
+    openOn('104')
+    await currentPage('104')
+
+    dragTo(500 - SWIPE_MIN_DISTANCE + 10)
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(pageNumberEl()).not.toHaveClass('bar__page--armed')
+  })
+
+  it('tänder sidnumret igen när fingret lyfts', async () => {
+    openOn('104')
+    await currentPage('104')
+    const finish = dragTo(500 - SWIPE_MIN_DISTANCE - 10)
+    await waitFor(() => expect(pageNumberEl()).toHaveClass('bar__page--armed'))
+
+    finish('pointerup')
+    document.querySelector('.swipe-track')?.dispatchEvent(new Event('transitionend'))
+
+    await waitFor(() => expect(pageNumberEl()).not.toHaveClass('bar__page--armed'))
+  })
+
+  it('tänder sidnumret igen när gesten avbryts', async () => {
+    openOn('104')
+    await currentPage('104')
+    const finish = dragTo(500 - SWIPE_MIN_DISTANCE - 10)
+    await waitFor(() => expect(pageNumberEl()).toHaveClass('bar__page--armed'))
+
+    finish('pointercancel')
+
+    await waitFor(() => expect(pageNumberEl()).not.toHaveClass('bar__page--armed'))
+  })
+
+  it('dämpar inte sidnumret när gesten är ett neddrag', async () => {
+    openOn('104')
+    await currentPage('104')
+    const shared = { bubbles: true, cancelable: true, pointerId: 1, pointerType: 'touch', isPrimary: true }
+    const main = container()
+
+    main.dispatchEvent(new PointerEvent('pointerdown', { ...shared, clientX: 500, clientY: 100 }))
+    main.dispatchEvent(new PointerEvent('pointermove', { ...shared, clientX: 500, clientY: 180 }))
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(pageNumberEl()).not.toHaveClass('bar__page--armed')
   })
 
   // R6
