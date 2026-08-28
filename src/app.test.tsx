@@ -2439,6 +2439,31 @@ describe('uppdatera sidan', () => {
   /** happy-dom runs no transitions, so the strip's close only ends by hand. */
   const stripSettles = () => pullTrack()?.dispatchEvent(new Event('transitionend'))
 
+  describe('medan knappsatsen är uppe', () => {
+    it('gör neddraget verkningslöst', async () => {
+      openOn('104')
+      await currentPage('104')
+      await userEvent.click(pageField())
+
+      pullBy(60)
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(strip()).toHaveTextContent('')
+      expect(requestedPages().filter((page) => page === '104')).toHaveLength(1)
+    })
+
+    it('släpper fram neddraget igen när den stängts', async () => {
+      openOn('104')
+      await currentPage('104')
+      await userEvent.click(pageField())
+      await tap('avbryt')
+
+      pullBy(60)
+
+      await waitFor(() => expect(strip()).toHaveTextContent(/HÄMTAR 104/))
+    })
+  })
+
   describe('knappen i raden', () => {
     it('frågar SVT igen fast sidan hämtades nyss', async () => {
       openOn('104')

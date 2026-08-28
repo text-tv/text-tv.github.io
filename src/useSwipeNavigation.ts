@@ -114,6 +114,12 @@ interface Options {
   motion: boolean
   /** True while a fetch the reader asked for is in flight; locks the pull out. */
   refreshing: boolean
+  /**
+   * True while the keypad is up. It locks the pull out for the same reason a
+   * running fetch does: the reader is in the middle of asking for something
+   * else, and the page they would be refreshing is one they are leaving.
+   */
+  editing: boolean
   navigate: (pageNumber: PageNumber) => void
   onDragging: (dragging: boolean) => void
   /**
@@ -152,6 +158,7 @@ export function useSwipeNavigation({
   next,
   motion,
   refreshing,
+  editing,
   navigate,
   onDragging,
   onArmed,
@@ -180,6 +187,7 @@ export function useSwipeNavigation({
     prev,
     next,
     refreshing,
+    editing,
     navigate,
     onDragging,
     onArmed,
@@ -196,6 +204,7 @@ export function useSwipeNavigation({
       prev,
       next,
       refreshing,
+      editing,
       navigate,
       onDragging,
       onArmed,
@@ -378,7 +387,7 @@ export function useSwipeNavigation({
           // always, and downward when there is page above to scroll back to.
           const sheet = track.current?.querySelector('.swipe-sheet--current')
           const atTop = (sheet?.scrollTop ?? 0) === 0
-          if (drop <= 0 || !atTop || latest.current.refreshing) {
+          if (drop <= 0 || !atTop || latest.current.refreshing || latest.current.editing) {
             gesture.current = undefined
             releaseTrack(live)
             return
@@ -495,7 +504,12 @@ export function useSwipeNavigation({
         // An abort is authoritative - the browser or the OS took the gesture -
         // and this is also the path every rescue listener arrives on, which is
         // what keeps the sheet from parking 44px down with nothing to close it.
-        if (aborted || offset < PULL_THRESHOLD_PX || latest.current.refreshing) {
+        if (
+          aborted ||
+          offset < PULL_THRESHOLD_PX ||
+          latest.current.refreshing ||
+          latest.current.editing
+        ) {
           closePull(motion ? PULL_SNAP_BACK : '')
           return
         }

@@ -95,6 +95,7 @@ export function App() {
     next,
     motion,
     refreshing,
+    editing,
     navigate,
     onDragging: setDragging,
     onArmed: setArmed,
