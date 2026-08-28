@@ -47,10 +47,10 @@ Record arrival where the payload lives, and take whichever record is newer:
 const arrived = useRef<Record<PageNumber, number>>({})
 // ...
 Date.now() - Math.max(fetchedAt(pageNumber), arrived.current[pageNumber] ?? 0) <
-  REVALIDATE_AFTER_MS
+  ARRIVAL_WINDOW_MS
 ```
 
-`arrived` is written wherever a payload enters memory — the ordinary load (`src/useTextTv.ts:241`) and the prefetch (`:281`) — beside the store write rather than depending on it (`src/useTextTv.ts:97-102`, `:206-217`).
+`arrived` is written wherever a payload enters memory — the ordinary load (`src/useTextTv.ts:341`) and the prefetch (`:408`) — beside the store write rather than depending on it (`src/useTextTv.ts:164-170`). The window it is compared against was a single `REVALIDATE_AFTER_MS` when this was written; it has since split in two, and arriving on a page is now governed by `ARRIVAL_WINDOW_MS` (`src/useTextTv.ts:30`).
 
 `Math.max` is what makes it safe in both directions. The store's record still counts, so a copy restored from storage across a session is dated correctly. The memory record still counts, so a page the store refused is not treated as unfetched. A page genuinely older than the window revalidates either way.
 
@@ -70,5 +70,6 @@ The skip condition already guarded the opposite drift: it requires `painted !== 
 
 ## Related Issues
 
+- [A prefetch that paints from a longer-lived store must pass the arrival test, not just have something to paint](a-prefetch-must-pass-the-arrival-test-not-just-have-something-to-paint.md) — the other direction of the same split. This doc is about a copy the app cannot *tell* is fresh; that one is about a copy it can tell is old, handed on by the prefetch without being tested at all.
 - `docs/solutions/best-practices/a-request-log-is-not-a-payload-log.md` — the same shape one layer up: a convenient signal standing in for the one that matters, in tests rather than in production.
 - `docs/plans/2026-08-26-1041-fix-preload-two-pages-ahead-plan.md` — the prefetch-window widening this bug was hiding behind.
