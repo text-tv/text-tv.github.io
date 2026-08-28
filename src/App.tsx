@@ -77,10 +77,24 @@ export function App() {
   const [slot, setSlot] = useState(0)
 
   /**
+   * Every way of leaving the page except the field's own commit. The keypad is
+   * put away here rather than off the page number, because a control can be
+   * pressed without the page changing at all - home while already on 100, a
+   * rail link to the page being read - and a keypad left standing over that
+   * would hold digits the reader can no longer commit and would take the
+   * keyboard's Escape with it.
+   */
+  const go = (page: PageNumber) => {
+    setEditing(false)
+    navigate(page)
+  }
+
+  /**
    * Both entry points come through here, so the strip always names the page
    * the running fetch is for even after the reader swipes on to another one.
    */
   const startRefresh = () => {
+    setEditing(false)
     setFetchingPage(pageNumber)
     refresh()
   }
@@ -96,7 +110,7 @@ export function App() {
     motion,
     refreshing,
     editing,
-    navigate,
+    navigate: go,
     onDragging: setDragging,
     onArmed: setArmed,
     onSwap: (direction) =>
@@ -171,7 +185,7 @@ export function App() {
                 result={contentFor(sheet.pageNumber)}
                 place={sheet.place}
                 markId={markId}
-                onNavigate={navigate}
+                onNavigate={go}
                 onRetry={reload}
               />
             ))}
@@ -184,7 +198,7 @@ export function App() {
         into view, which is one transform rather than two that have to agree.
       */}
       <div className={editing ? 'dock dock--editing' : 'dock'}>
-        <QuickLinks current={pageNumber} onNavigate={navigate} />
+        <QuickLinks current={pageNumber} onNavigate={go} />
         <BottomBar
           pageNumber={pageNumber}
           prev={prev}
@@ -192,9 +206,10 @@ export function App() {
           armed={armed}
           pending={neighboursUnknown}
           refreshing={refreshing}
-          onNavigate={navigate}
-          onHome={() => navigate(HOME_PAGE)}
+          onNavigate={go}
+          onHome={() => go(HOME_PAGE)}
           onRefresh={startRefresh}
+          editing={editing}
           onEditing={setEditing}
         />
       </div>

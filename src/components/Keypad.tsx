@@ -5,8 +5,11 @@
  */
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'avbryt', '0', 'radera'] as const
 
+/** What the pad can send: nothing else ever arrives from a key. */
+export type KeypadKey = (typeof KEYS)[number]
+
 /** The two keys that are words rather than digits, and read differently. */
-const KEY_CLASS: Partial<Record<(typeof KEYS)[number], string>> = {
+const KEY_CLASS: Partial<Record<KeypadKey, string>> = {
   avbryt: 'keypad__key keypad__key--cancel',
   radera: 'keypad__key keypad__key--erase',
 }
@@ -14,7 +17,7 @@ const KEY_CLASS: Partial<Record<(typeof KEYS)[number], string>> = {
 interface Props {
   /** Whether the pad is up. Closed, it is out of reach of tab and of a reader. */
   open: boolean
-  onPress: (key: string) => void
+  onPress: (key: KeypadKey) => void
 }
 
 /**

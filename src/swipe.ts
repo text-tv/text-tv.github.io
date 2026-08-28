@@ -32,6 +32,14 @@
  * follow-up tap gets through.
  */
 export const SWIPE_MIN_DISTANCE = 60
+/*
+ * How far back inside the commit distance a drag has to come before it stops
+ * reporting itself as armed. Without it a finger resting on the threshold
+ * crosses it repeatedly, and each crossing is a state write that re-renders
+ * every decoded frame on screen - the cost the per-frame direct writes exist to
+ * avoid. A thumb's resting jitter is a few pixels; this is comfortably past it.
+ */
+export const SWIPE_ARM_RELEASE = 12
 export const SWIPE_AXIS_RATIO = 1.5
 export const SWIPE_FLICK_VELOCITY = 0.5
 export const SWIPE_FLICK_MIN_DISTANCE = 12

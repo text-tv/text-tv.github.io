@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { PageNumber } from '../api.types'
-import { Keypad } from './Keypad'
+import { Keypad, type KeypadKey } from './Keypad'
 
 /**
  * How long the third digit stays on screen before the page changes. Short
@@ -25,7 +25,12 @@ interface Props {
   onNavigate: (pageNumber: PageNumber) => void
   onHome: () => void
   onRefresh: () => void
-  /** Whether the keypad is up. The shell locks the pull gesture out while it is. */
+  /**
+   * Whether the keypad is up. It is the shell's state rather than the bar's:
+   * the pull gesture is locked out while the pad is showing, and the dock the
+   * bar rides in is what slides. The digits typed into it stay here.
+   */
+  editing: boolean
   onEditing: (editing: boolean) => void
 }
 
@@ -50,32 +55,46 @@ export function BottomBar({
   onNavigate,
   onHome,
   onRefresh,
+  editing,
   onEditing,
 }: Props) {
-  const [editing, setEditing] = useState(false)
   const [typed, setTyped] = useState('')
   const id = useId()
   /** The beat between the third digit and the page change; also the lock on it. */
   const beat = useRef<number | undefined>(undefined)
-  /** Read by the effect below, which must not re-run when editing changes. */
+  /** The field itself, so opening the keypad can take focus for the keyboard. */
+  const field = useRef<HTMLButtonElement>(null)
+  /**
+   * Read by the effect below, which must not re-run when editing changes. Not
+   * written during render: a render React discards would leave the ref
+   * describing a tree that never existed.
+   */
   const open = useRef(false)
-  open.current = editing
+  useLayoutEffect(() => {
+    open.current = editing
+  })
 
-  const close = () => {
+  const close = () => onEditing(false)
+
+  /**
+   * Everything the keypad leaves behind, wherever the closing came from - the
+   * field, Escape, or the shell putting it away because the reader pressed a
+   * control that navigates. Keeping it here rather than in `close` means no
+   * caller can put the keypad away and forget the digits or the pending beat.
+   */
+  useEffect(() => {
+    if (editing) return
+    setTyped('')
     if (beat.current !== undefined) {
       clearTimeout(beat.current)
       beat.current = undefined
     }
-    setEditing(false)
-    setTyped('')
-    onEditing(false)
-  }
+  }, [editing])
 
   /**
-   * A page change the field did not make - a rail link, an arrow, the home
-   * button, a hotspot - leaves the keypad standing over digits that no longer
-   * mean anything. The field's own commit closes before it navigates, so it
-   * never arrives here.
+   * A page change the field did not make and the shell did not see: the browser
+   * back button, or any other hash change. The controls all close the keypad
+   * themselves, so this is the last route rather than the usual one.
    */
   useEffect(() => {
     if (open.current) close()
@@ -113,8 +132,11 @@ export function BottomBar({
     }, COMMIT_BEAT_MS)
   }
 
-  /** The one path every key takes, on screen or on a keyboard. */
-  const press = (key: string) => {
+  /**
+   * The one path every key takes, whether it came from the pad or from a
+   * hardware keyboard - which is why it is wider than `KeypadKey`.
+   */
+  const press = (key: KeypadKey | string) => {
     // The beat is short but it is not nothing, and what the reader sees during
     // it is already decided. A key arriving inside it is a tap they had not
     // seen the answer to yet.
@@ -128,8 +150,11 @@ export function BottomBar({
 
   const openKeypad = () => {
     setTyped('')
-    setEditing(true)
     onEditing(true)
+    // Not left to the click: Safari and Firefox on macOS do not focus a button
+    // when it is clicked, and the field's own keydown handler is the only thing
+    // Escape and the hardware digits have to arrive on.
+    field.current?.focus()
   }
 
   const onFieldClick = () => (editing ? close() : openKeypad())
@@ -182,6 +207,7 @@ export function BottomBar({
             */}
             <button
               type="button"
+              ref={field}
               id={id}
               className={
                 editing

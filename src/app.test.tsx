@@ -569,6 +569,100 @@ describe('knapparna längst ned', () => {
     expect(keypad()).toHaveAttribute('inert')
   })
 
+  it('stänger knappsatsen även när kontrollen inte byter sida', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(pageField())
+    await tap('3')
+
+    // Home while already on 100 changes no page, so nothing downstream of the
+    // page number can be what puts the keypad away.
+    await userEvent.click(screen.getByLabelText('Startsida 100'))
+
+    expect(keypad()).toHaveAttribute('inert')
+    await currentPage('100')
+  })
+
+  it('stänger knappsatsen när sidan uppdateras', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(pageField())
+    await tap('3')
+
+    await userEvent.click(screen.getByLabelText('Uppdatera sidan'))
+
+    expect(keypad()).toHaveAttribute('inert')
+    // Let the fetch the click started finish, so it cannot land in the middle
+    // of whatever runs next.
+    await waitFor(() =>
+      expect(document.querySelector('.freshness__status')).toHaveTextContent(/^Uppdaterad/),
+    )
+  })
+
+  it('lämnar inga siffror kvar till nästa gång', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(pageField())
+    await tap('3', '3')
+    await tap('avbryt')
+
+    await userEvent.click(pageField())
+
+    expect(pageField()).toHaveTextContent('')
+  })
+
+  // R16
+  it('gör ingenting när radera trycks utan siffror', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(pageField())
+
+    await tap('radera')
+
+    expect(keypad()).not.toHaveAttribute('inert')
+    expect(pageField()).toHaveTextContent('')
+  })
+
+  // R8
+  it('visar en markör bara medan man skriver', async () => {
+    openOn('100')
+    await currentPage('100')
+    expect(document.querySelector('.bar__caret')).toBeNull()
+
+    await userEvent.click(pageField())
+    expect(document.querySelector('.bar__caret')).not.toBeNull()
+
+    await tap('avbryt')
+    expect(document.querySelector('.bar__caret')).toBeNull()
+  })
+
+  // R18
+  it('lyfter hela raden när knappsatsen reses', async () => {
+    openOn('100')
+    await currentPage('100')
+    const dock = () => document.querySelector('.dock') as HTMLElement
+    expect(dock()).not.toHaveClass('dock--editing')
+
+    await userEvent.click(pageField())
+    expect(dock()).toHaveClass('dock--editing')
+
+    await tap('avbryt')
+    expect(dock()).not.toHaveClass('dock--editing')
+  })
+
+  // R26
+  it('flyttar fokus till fältet när knappsatsen reses', async () => {
+    openOn('100')
+    await currentPage('100')
+    // Not left to the click: not every engine focuses a button when it is
+    // clicked, and Escape has nowhere else to land.
+    pageField().blur()
+
+    await userEvent.click(pageField())
+
+    expect(document.activeElement).toBe(pageField())
+  })
+
   it('visar knappsatsen för en skärmläsare bara när den är uppe', async () => {
     openOn('100')
     await currentPage('100')

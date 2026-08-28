@@ -905,7 +905,7 @@ body {
  * back would read as the app losing its place.
  */
 .bar__page-field--armed {
-  color: #8a8a8a;
+  color: var(--dim);
 }
 
 .bar__page-field--editing {
@@ -944,8 +944,14 @@ body {
   grid-auto-rows: 1fr;
   gap: 1px;
   padding-top: 1px;
+  /*
+   * The inset is added to the height rather than taken out of it: the boxes are
+   * border-box, so naming the height alone would keep the pad at 236px while
+   * the dock above travelled 236px *plus* the inset, and the difference would
+   * open as a strip of page below the bottom key row.
+   */
   padding-bottom: env(safe-area-inset-bottom);
-  height: var(--keypad-height);
+  height: calc(var(--keypad-height) + env(safe-area-inset-bottom));
   background: #1c1c1c;
   border-top: 1px solid #1c1c1c;
   /* The pad is not a scroll surface; a drag on the keys moves nothing. */
@@ -977,21 +983,13 @@ body {
 }
 
 .keypad__key--erase {
-  color: #8a8a8a;
+  color: var(--dim);
 }
 
 .keypad__key:active {
   background: #1a1a1a;
 }
 
-/*
- * The rail, the bar and the keypad, as one band. The keypad hangs below the
- * shell; sliding the whole dock up by exactly its height is what brings it into
- * view, and is one transform where a bar and a pad moving separately would be
- * two that have to agree. Relative so the keypad's own `top: 100%` resolves
- * against this band, and non-shrinking because the rail and the bar carried
- * that themselves before they were wrapped.
- */
 /*
  * Present to a screen reader, absent to the eye. Not `display: none`, which
  * would take it out of the accessibility tree as well, and clipped rather than
@@ -1009,6 +1007,14 @@ body {
   white-space: nowrap;
 }
 
+/*
+ * The rail, the bar and the keypad, as one band. The keypad hangs below the
+ * shell; sliding the whole dock up by exactly its height is what brings it into
+ * view, and is one transform where a bar and a pad moving separately would be
+ * two that have to agree. Relative so the keypad's own `top: 100%` resolves
+ * against this band, and non-shrinking because the rail and the bar carried
+ * that themselves before they were wrapped.
+ */
 .dock {
   position: relative;
   flex: 0 0 auto;

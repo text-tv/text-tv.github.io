@@ -4,6 +4,7 @@ import {
   CLICK_SWALLOW_MS,
   PULL_STRIP_PX,
   PULL_THRESHOLD_PX,
+  SWIPE_ARM_RELEASE,
   SWIPE_GUTTER_PX,
   SWIPE_MIN_DISTANCE,
   dampedOffset,
@@ -443,17 +444,25 @@ export function useSwipeNavigation({
       live.lastX = event.clientX
       live.lastAt = event.timeStamp
 
+      const neighbour = travel < 0 ? latest.current.next : latest.current.prev
+
       // The distance floor only. `swipeDirection` also commits a short flick,
       // but from a release velocity that does not exist yet, so no mid-drag
       // answer can be exact - and the same state-write-per-move cost the pull's
       // label avoids applies here, which is why this fires only on a crossing.
-      const past = Math.abs(travel) >= SWIPE_MIN_DISTANCE
+      //
+      // A drag toward a side with no neighbour is going nowhere however far it
+      // travels, so the page number it would dim is not about to be wrong. The
+      // release distance is what keeps a finger parked on the threshold from
+      // crossing it over and over.
+      const past =
+        !!neighbour &&
+        Math.abs(travel) >= (live.past ? SWIPE_MIN_DISTANCE - SWIPE_ARM_RELEASE : SWIPE_MIN_DISTANCE)
       if (past !== live.past) {
         live.past = past
         latest.current.onArmed(past)
       }
 
-      const neighbour = travel < 0 ? latest.current.next : latest.current.prev
       const offset = live.origin + (neighbour ? travel : dampedOffset(travel, live.width))
       if (track.current) track.current.style.transform = `translate3d(${offset}px, 0, 0)`
     }
