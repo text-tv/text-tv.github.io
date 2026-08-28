@@ -518,6 +518,62 @@ describe('knapparna längst ned', () => {
     expect(pageField()).toHaveValue('')
   })
 
+  it('kapar det man skriver vid tre siffror', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    // maxlength stops a typed fourth digit, so this pins the code's own cap:
+    // a single change event carrying more than three.
+    const field = pageField()
+    field.focus()
+    fireEvent.change(field, { target: { value: '12345' } })
+
+    await currentPage('123')
+  })
+
+  it('struntar i annat än siffror', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    const field = pageField()
+    field.focus()
+    fireEvent.change(field, { target: { value: '3a3b1' } })
+
+    await currentPage('331')
+  })
+
+  // R3. Tapping another control takes the focus with it, so the half-typed
+  // number goes on its own - no code puts it away.
+  it('släpper det man skrivit när man trycker på en annan kontroll', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.type(pageField(), '33')
+
+    await userEvent.click(screen.getByRole('button', { name: /300 SPORT/ }))
+
+    await currentPage('300')
+  })
+
+  // R3. The back button changes the page without touching the field, and a
+  // half-typed number is the reader's own: it is not taken away by a page
+  // change they did not make in the field.
+  it('behåller det man skrivit när bakåtknappen byter sida under det', async () => {
+    openOn('100')
+    await currentPage('100')
+    await userEvent.click(screen.getByRole('button', { name: /300 SPORT/ }))
+    await currentPage('300')
+
+    await userEvent.type(pageField(), '33')
+    window.history.back()
+
+    await waitFor(() => expect(window.location.hash).toBe('#100'))
+    expect(pageField()).toHaveValue('33')
+
+    // Giving up on it hands the field back to whichever page won.
+    pageField().blur()
+    await currentPage('100')
+  })
+
   // AE4
   it('ritar ingen egen knappsats', async () => {
     openOn('100')

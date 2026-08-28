@@ -42,9 +42,12 @@ export function BottomBar({
   onHome,
   onRefresh,
 }: Props) {
-  /** Whether the reader is typing. Focus is the whole state; nothing mirrors it. */
-  const [focused, setFocused] = useState(false)
-  const [typed, setTyped] = useState('')
+  /**
+   * The digits typed so far, or null when the reader is not entering a page.
+   * One piece of state rather than two: "is being edited" is exactly "these
+   * digits exist", and a separate flag could only ever disagree with it.
+   */
+  const [typed, setTyped] = useState<string | null>(null)
 
   /**
    * How a control says "not now" without dropping the reader's focus.
@@ -113,14 +116,9 @@ export function BottomBar({
             inputMode="numeric"
             pattern="[0-9]*"
             maxLength={3}
-            value={focused ? typed : pageNumber}
-            onFocus={() => {
-              setFocused(true)
-              setTyped('')
-            }}
-            // No need to clear the digits here: an unfocused field shows the
-            // page number whatever they are, and focusing again starts empty.
-            onBlur={() => setFocused(false)}
+            value={typed ?? pageNumber}
+            onFocus={() => setTyped('')}
+            onBlur={() => setTyped(null)}
             onChange={onType}
             onKeyDown={onKeyDown}
             aria-label="Sida"

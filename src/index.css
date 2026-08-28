@@ -725,6 +725,9 @@ body {
   font-stretch: 150%;
   display: flex;
   justify-content: center;
+  /* As .freshness and .rail: declared, and held at that height rather than
+     squeezed when the keyboard shortens the shell under it. */
+  flex: 0 0 auto;
   height: calc(var(--bar-height) + env(safe-area-inset-bottom));
   padding: 0 0 env(safe-area-inset-bottom);
   background: #000;
