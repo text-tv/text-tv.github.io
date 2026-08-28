@@ -879,10 +879,15 @@ body {
  * carries at rest; no radius anywhere, because teletext has no rounded corners.
  */
 .bar__page-field {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 78px;
+  /*
+   * An input's value is drawn by the browser's own editor box, which
+   * `justify-content` does not move and `min-width` does not cap - it takes its
+   * intrinsic width from the default `size`. So the width is named outright and
+   * the centring is `text-align`, exactly as this field did before it was
+   * briefly a button.
+   */
+  width: 78px;
+  text-align: center;
   height: 40px;
   padding: 0;
   border: 0;
@@ -893,9 +898,20 @@ body {
   font-size: 22px;
   letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
+  caret-color: #ffff00;
   transition:
     color 120ms linear,
     border-color 140ms linear;
+}
+
+/*
+ * Typing. The focus rule outranks the armed one below on specificity alone,
+ * which is the precedence we want: what you are typing beats a warning about
+ * the number you are typing over.
+ */
+.bar__page-field:focus {
+  color: #ffff00;
+  border-bottom-color: #ffff00;
 }
 
 /*
@@ -906,22 +922,6 @@ body {
  */
 .bar__page-field--armed {
   color: var(--dim);
-}
-
-.bar__page-field--editing {
-  color: #ffff00;
-  border-bottom-color: #ffff00;
-}
-
-/*
- * Two pixels of block rather than a text caret: the field holds no text node
- * for a real caret to sit in, and the block is the shape teletext would draw.
- */
-.bar__caret {
-  width: 2px;
-  height: 24px;
-  margin-left: 2px;
-  background: #ffff00;
 }
 
 /*

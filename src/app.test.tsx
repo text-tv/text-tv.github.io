@@ -37,27 +37,10 @@ const openOn = (pageNumber?: string) => {
 }
 
 const currentPage = async (pageNumber: string) =>
-  waitFor(() => expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent(pageNumber))
+  waitFor(() => expect(screen.getByLabelText('Sida')).toHaveValue(pageNumber))
 
-/**
- * The one field: the page you are on until you tap it, then what you type. Not
- * queried by its name, which is the thing that changes when it is tapped.
- */
-const pageField = () => document.querySelector('.bar__page-field') as HTMLButtonElement
-
-/** Queried by class: `inert` and aria-hidden keep it out of the role queries. */
-const keypad = () => document.querySelector('.keypad') as HTMLElement
-
-/** Presses keypad keys in order, by the label printed on them. */
-const tap = async (...keys: string[]) => {
-  for (const key of keys) {
-    const found = [...keypad().querySelectorAll('.keypad__key')].find(
-      (element) => element.textContent === key,
-    )
-    if (!found) throw new Error(`no keypad key reads ${key}`)
-    await userEvent.click(found)
-  }
-}
+/** The one field: the page you are on until you focus it, then what you type. */
+const pageField = () => screen.getByLabelText('Sida') as HTMLInputElement
 
 /** Every frame box on screen, in whichever of its three states it is. */
 const frames = () => screen.getAllByRole('group')
@@ -339,7 +322,7 @@ describe('överlappande länkar', () => {
     tapAt(layer, 10, 380)
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('100')
+    expect(screen.getByLabelText('Sida')).toHaveValue('100')
   })
 
   it('följer bilden när den skalas ned', async () => {
@@ -473,292 +456,76 @@ describe('knapparna längst ned', () => {
     await currentPage('100')
   })
 
-  // AE1, AE4
+  // AE1
+  it('ber om operativsystemets siffertangentbord', async () => {
+    openOn('100')
+    await currentPage('100')
+
+    const field = pageField()
+    expect(field).toHaveAttribute('inputmode', 'numeric')
+    expect(field).toHaveAttribute('pattern', '[0-9]*')
+    expect(field).toHaveAttribute('maxlength', '3')
+    // A ghosted 000 behind a half-typed number reads as a mistake.
+    expect(field).not.toHaveAttribute('placeholder')
+  })
+
+  // AE2
   it('går till sidan så snart tredje siffran är skriven', async () => {
     openOn('100')
     await currentPage('100')
 
-    await userEvent.click(pageField())
-    await tap('3', '3', '1')
+    await userEvent.type(pageField(), '331')
 
     await currentPage('331')
-    await waitFor(() => expect(keypad()).toHaveAttribute('inert'))
   })
 
+  // AE3
   it('gör ingenting förrän tredje siffran', async () => {
     openOn('100')
     await currentPage('100')
 
-    await userEvent.click(pageField())
-    await tap('3', '3')
+    await userEvent.type(pageField(), '33')
+    expect(pageField()).toHaveValue('33')
 
-    expect(pageField()).toHaveTextContent('33')
-    await tap('avbryt')
+    // Giving up on the entry puts the page you are on back in the field.
+    pageField().blur()
     await currentPage('100')
   })
 
-  // AE2
-  it('tar bort sista siffran med radera, utan att stänga knappsatsen', async () => {
+  // AE5
+  it('avbryter det man skrivit med Escape', async () => {
     openOn('100')
     await currentPage('100')
-    await userEvent.click(pageField())
+    await userEvent.type(pageField(), '33')
 
-    await tap('3', '3', 'radera')
+    await userEvent.keyboard('{Escape}')
 
-    expect(pageField()).toHaveTextContent('3')
-    expect(keypad()).not.toHaveAttribute('inert')
-  })
-
-  it('stänger knappsatsen utan att byta sida när man avbryter', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-
-    await tap('3', '3', 'avbryt')
-
-    expect(keypad()).toHaveAttribute('inert')
     await currentPage('100')
   })
 
-  it('slutar aldrig på fler än tre siffror', async () => {
-    openOn('100')
-    await currentPage('100')
+  it('börjar om från tomt varje gång man går tillbaka till fältet', async () => {
+    openOn('377')
+    await currentPage('377')
+
+    // Half an entry, abandoned: the field goes back to naming the page.
+    await userEvent.type(pageField(), '33')
+    pageField().blur()
+    await currentPage('377')
+
+    // And the next entry starts empty rather than resuming the abandoned one.
     await userEvent.click(pageField())
 
-    await tap('3', '3', '0')
-    await currentPage('330')
-
-    // The fourth press lands on a closed pad and starts nothing.
-    await tap('1')
-    await currentPage('330')
-  })
-
-  it('stänger knappsatsen när fältet trycks igen', async () => {
-    openOn('100')
-    await currentPage('100')
-
-    await userEvent.click(pageField())
-    expect(keypad()).not.toHaveAttribute('inert')
-    await userEvent.click(pageField())
-
-    expect(keypad()).toHaveAttribute('inert')
+    expect(pageField()).toHaveValue('')
   })
 
   // AE4
-  it('reser appens egen knappsats i stället för systemets', async () => {
+  it('ritar ingen egen knappsats', async () => {
     openOn('100')
     await currentPage('100')
 
     await userEvent.click(pageField())
 
-    expect(document.querySelector('[inputmode]')).toBeNull()
-    expect(document.querySelector('.bar input')).toBeNull()
-    expect(screen.getByLabelText('Gå till sida')).toBe(pageField())
-  })
-
-  // AE6
-  it('stänger knappsatsen när sidan byts någon annanstans ifrån', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-    await tap('3')
-
-    await userEvent.click(screen.getByRole('button', { name: /300 SPORT/ }))
-
-    await currentPage('300')
-    expect(keypad()).toHaveAttribute('inert')
-  })
-
-  it('stänger knappsatsen även när kontrollen inte byter sida', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-    await tap('3')
-
-    // Home while already on 100 changes no page, so nothing downstream of the
-    // page number can be what puts the keypad away.
-    await userEvent.click(screen.getByLabelText('Startsida 100'))
-
-    expect(keypad()).toHaveAttribute('inert')
-    await currentPage('100')
-  })
-
-  it('stänger knappsatsen när sidan uppdateras', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-    await tap('3')
-
-    await userEvent.click(screen.getByLabelText('Uppdatera sidan'))
-
-    expect(keypad()).toHaveAttribute('inert')
-    // Let the fetch the click started finish, so it cannot land in the middle
-    // of whatever runs next.
-    await waitFor(() =>
-      expect(document.querySelector('.freshness__status')).toHaveTextContent(/^Uppdaterad/),
-    )
-  })
-
-  it('lämnar inga siffror kvar till nästa gång', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-    await tap('3', '3')
-    await tap('avbryt')
-
-    await userEvent.click(pageField())
-
-    expect(pageField()).toHaveTextContent('')
-  })
-
-  // R16
-  it('gör ingenting när radera trycks utan siffror', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-
-    await tap('radera')
-
-    expect(keypad()).not.toHaveAttribute('inert')
-    expect(pageField()).toHaveTextContent('')
-  })
-
-  // R25
-  it('stänger knappsatsen när bakåtknappen byter sida', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(screen.getByRole('button', { name: /300 SPORT/ }))
-    await currentPage('300')
-    await userEvent.click(pageField())
-    await tap('3')
-
-    // Not a control the shell ever sees: the hash changes underneath it.
-    window.history.back()
-
-    await currentPage('100')
-    await waitFor(() => expect(keypad()).toHaveAttribute('inert'))
-  })
-
-  // R8
-  it('visar en markör bara medan man skriver', async () => {
-    openOn('100')
-    await currentPage('100')
-    expect(document.querySelector('.bar__caret')).toBeNull()
-
-    await userEvent.click(pageField())
-    expect(document.querySelector('.bar__caret')).not.toBeNull()
-
-    await tap('avbryt')
-    expect(document.querySelector('.bar__caret')).toBeNull()
-  })
-
-  // R18
-  it('lyfter hela raden när knappsatsen reses', async () => {
-    openOn('100')
-    await currentPage('100')
-    const dock = () => document.querySelector('.dock') as HTMLElement
-    expect(dock()).not.toHaveClass('dock--editing')
-
-    await userEvent.click(pageField())
-    expect(dock()).toHaveClass('dock--editing')
-
-    await tap('avbryt')
-    expect(dock()).not.toHaveClass('dock--editing')
-  })
-
-  // R26
-  it('flyttar fokus till fältet när knappsatsen reses', async () => {
-    openOn('100')
-    await currentPage('100')
-    // Not left to the click: not every engine focuses a button when it is
-    // clicked, and Escape has nowhere else to land.
-    pageField().blur()
-
-    await userEvent.click(pageField())
-
-    expect(document.activeElement).toBe(pageField())
-  })
-
-  it('visar knappsatsen för en skärmläsare bara när den är uppe', async () => {
-    openOn('100')
-    await currentPage('100')
-    expect(keypad()).toHaveAttribute('aria-hidden', 'true')
-    expect(keypad()).toHaveAttribute('inert')
-    expect(keypad()).toHaveAttribute('aria-label', 'Knappsats')
-
-    await userEvent.click(pageField())
-
-    expect(keypad()).not.toHaveAttribute('aria-hidden')
-    expect(keypad()).not.toHaveAttribute('inert')
-  })
-})
-
-describe('knappsatsen från ett tangentbord', () => {
-  // R20
-  it('går till sidan man skriver på tangentbordet', async () => {
-    openOn('100')
-    await currentPage('100')
-
-    pageField().focus()
-    await userEvent.keyboard('{Enter}')
-    await userEvent.keyboard('200')
-
-    await currentPage('200')
-  })
-
-  // R20
-  it('bekräftar ingenting med Enter - tredje siffran är hela ordern', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-
-    await tap('3', '3')
-    await userEvent.keyboard('{Enter}')
-
-    // Two digits are not a page to go to, and Enter is not a confirm key.
-    expect(pageField()).toHaveTextContent('33')
-    expect(keypad()).not.toHaveAttribute('inert')
-
-    await tap('avbryt')
-    await currentPage('100')
-  })
-
-  // R20
-  it('stänger knappsatsen med Escape utan att byta sida', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-    await tap('3', '3')
-
-    await userEvent.keyboard('{Escape}')
-
-    expect(keypad()).toHaveAttribute('inert')
-    await currentPage('100')
-  })
-
-  // R26
-  it('behåller fokus på fältet när en knapp trycks', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-
-    await tap('3')
-
-    expect(document.activeElement).toBe(pageField())
-    // And so Escape still reaches the field's own handler.
-    await userEvent.keyboard('{Escape}')
-    expect(keypad()).toHaveAttribute('inert')
-  })
-
-  // R10
-  it('säger vad som skrivits till en skärmläsare', async () => {
-    openOn('100')
-    await currentPage('100')
-    await userEvent.click(pageField())
-
-    await tap('3', '3')
-
-    expect(document.querySelector('[aria-live="polite"].visually-hidden')).toHaveTextContent('33')
+    expect(document.querySelector('.keypad')).toBeNull()
   })
 })
 
@@ -838,7 +605,7 @@ describe('svep mellan sidor', () => {
     swipeFrom(container(), 500, 300, 620, 300)
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('100')
+    expect(screen.getByLabelText('Sida')).toHaveValue('100')
   })
 
   // R4
@@ -861,7 +628,7 @@ describe('svep mellan sidor', () => {
     swipeFrom(container(), 500, 300, 380, 300, 'mouse')
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   /**
@@ -877,7 +644,7 @@ describe('svep mellan sidor', () => {
       main.dispatchEvent(new PointerEvent(event, { ...shared, clientX: toX, clientY: 300 }))
   }
 
-  const pageNumberEl = () => screen.getByLabelText('Aktuell sida')
+  const pageNumberEl = () => pageField()
 
   it('dämpar sidnumret när svepet gått långt nog att byta sida', async () => {
     openOn('104')
@@ -953,7 +720,7 @@ describe('svep mellan sidor', () => {
     main.dispatchEvent(new PointerEvent('pointerup', { ...shared, clientX: 380, clientY: 300 }))
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R6
@@ -986,7 +753,7 @@ describe('svep mellan sidor', () => {
     main.dispatchEvent(new PointerEvent('pointerup', { ...first, clientX: 380, clientY: 300 }))
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R7
@@ -998,7 +765,7 @@ describe('svep mellan sidor', () => {
     swipeFrom(container(), 20, 300, 200, 300)
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R8
@@ -1009,7 +776,7 @@ describe('svep mellan sidor', () => {
     swipeFrom(container(), 500, 600, 420, 200)
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('331')
+    expect(screen.getByLabelText('Sida')).toHaveValue('331')
 
     // The same page, swept sideways: proves the gesture was live here all
     // along, and that the drag above was turned down for leaning too much.
@@ -1026,7 +793,7 @@ describe('svep mellan sidor', () => {
     swipeFrom(screen.getByLabelText('Genvägar'), 500, 300, 380, 300)
 
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R10
@@ -1041,7 +808,7 @@ describe('svep mellan sidor', () => {
     tapAt(layer, 240, 152)
 
     await currentPage('101')
-    expect(screen.getByLabelText('Aktuell sida')).not.toHaveTextContent('106')
+    expect(screen.getByLabelText('Sida')).not.toHaveValue('106')
   })
 
   // R10
@@ -1128,7 +895,7 @@ describe('svepet följer fingret', () => {
     snapEnds()
 
     await waitFor(() => expect(sheets()).toHaveLength(1))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R21
@@ -1291,7 +1058,7 @@ describe('svepet följer fingret', () => {
 
     snapEnds()
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R17
@@ -1314,7 +1081,7 @@ describe('svepet följer fingret', () => {
     snapEnds()
 
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   /**
@@ -1341,7 +1108,7 @@ describe('svepet följer fingret', () => {
     // abandoned.
     expect(track().style.transform).toBe('translate3d(-30px, 0, 0)')
     expect(sheets()).toHaveLength(3)
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   /**
@@ -1395,7 +1162,7 @@ describe('svepet följer fingret', () => {
     expect(track().style.transform).toBe('translate3d(0px, 0, 0)')
     snapEnds()
     await waitFor(() => expect(sheets()).toHaveLength(1))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R14
@@ -1414,7 +1181,7 @@ describe('svepet följer fingret', () => {
 
     snapEnds()
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R14
@@ -1447,7 +1214,7 @@ describe('svepet följer fingret', () => {
     snapEnds()
 
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R14
@@ -1463,7 +1230,7 @@ describe('svepet följer fingret', () => {
 
     snapEnds()
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   // R7
@@ -1496,7 +1263,7 @@ describe('svepet följer fingret', () => {
     snapEnds()
 
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 })
 
@@ -1551,7 +1318,7 @@ describe('fliken göms mitt i fjädringen', () => {
     // held out on purpose until the hash lands.
     snapEnds()
     expect(track().style.transform).toBe(out)
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
 
     await currentPage('105')
   })
@@ -1569,7 +1336,7 @@ describe('fliken göms mitt i fjädringen', () => {
     expect(track().style.transform).toBe('')
     expect(track().style.transition).toBe('')
     await waitFor(() => expect(sheets()).toHaveLength(1))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
   it('städar undan en fjädring som inte bar på något sidbyte', async () => {
@@ -1586,7 +1353,7 @@ describe('fliken göms mitt i fjädringen', () => {
     expect(track().style.transform).toBe('')
     expect(track().style.transition).toBe('')
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('104')
+    expect(screen.getByLabelText('Sida')).toHaveValue('104')
   })
 
 })
@@ -1867,7 +1634,7 @@ describe('grannarna vid sidan om', () => {
     // The no-op activation is the whole point: a target it does not have must
     // not become a navigation to nowhere.
     await settled()
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('105')
+    expect(screen.getByLabelText('Sida')).toHaveValue('105')
   })
 
   it('lämnar pilen framåt otillgänglig men fokuserbar medan sidan hämtas', async () => {
@@ -1993,7 +1760,7 @@ describe('grannarna vid sidan om', () => {
     expect(track().style.transform).toBe('')
     snapEnds()
     await waitFor(() => expect(sheets()).toHaveLength(1))
-    expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent('105')
+    expect(screen.getByLabelText('Sida')).toHaveValue('105')
   })
 })
 
@@ -2494,23 +2261,20 @@ describe('det synliga området', () => {
 
   // AE2. happy-dom lays nothing out, so this pins the wiring: the shell follows
   // the shrunken viewport and three digits still navigate while it is shrunk.
-  // The shrinking is no longer the OS keyboard's - there is no input left to
-  // summon one - but a pinch or a scroll moves the visual viewport just the
-  // same, and the shell has to follow it either way.
-  it('går till sidan man skriver medan den synliga ytan krympt', async () => {
+  it('går till sidan man skriver medan tangentbordet är uppe', async () => {
     const viewport = useViewportStub(800)
     openOn('377')
     await currentPage('377')
 
+    // The OS keyboard opens over the lower half.
     await userEvent.click(pageField())
     viewport.height = 300
     viewport.dispatchEvent(new Event('resize'))
     await waitFor(() => expect(heightProperty()).toBe('300px'))
 
-    await tap('1', '0', '0')
+    await userEvent.type(pageField(), '100')
 
     await currentPage('100')
-    expect(pageField()).toHaveTextContent('100')
 
     viewport.height = 800
     viewport.dispatchEvent(new Event('resize'))
@@ -2548,31 +2312,6 @@ describe('uppdatera sidan', () => {
 
   /** happy-dom runs no transitions, so the strip's close only ends by hand. */
   const stripSettles = () => pullTrack()?.dispatchEvent(new Event('transitionend'))
-
-  describe('medan knappsatsen är uppe', () => {
-    it('gör neddraget verkningslöst', async () => {
-      openOn('104')
-      await currentPage('104')
-      await userEvent.click(pageField())
-
-      pullBy(60)
-
-      await new Promise((resolve) => setTimeout(resolve, 50))
-      expect(strip()).toHaveTextContent('')
-      expect(requestedPages().filter((page) => page === '104')).toHaveLength(1)
-    })
-
-    it('släpper fram neddraget igen när den stängts', async () => {
-      openOn('104')
-      await currentPage('104')
-      await userEvent.click(pageField())
-      await tap('avbryt')
-
-      pullBy(60)
-
-      await waitFor(() => expect(strip()).toHaveTextContent(/HÄMTAR 104/))
-    })
-  })
 
   describe('knappen i raden', () => {
     it('frågar SVT igen fast sidan hämtades nyss', async () => {
@@ -3166,11 +2905,11 @@ describe('uppdatera sidan', () => {
       fire(container(), 'pointermove', 300, 300, 50)
       fire(container(), 'pointerup', 300, 300, 50)
 
-      const before = screen.getByLabelText('Aktuell sida').textContent
+      const before = pageField().value
       marks()[0].dispatchEvent(new Event('transitionend', { bubbles: true }))
 
       await settled()
-      expect(screen.getByLabelText('Aktuell sida')).toHaveTextContent(before ?? '')
+      expect(screen.getByLabelText('Sida')).toHaveValue(before ?? '')
     })
 
     it('märker ingenting när man återvänder till en sida man uppdaterat', async () => {

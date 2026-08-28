@@ -209,8 +209,6 @@ export function App() {
           onNavigate={go}
           onHome={() => go(HOME_PAGE)}
           onRefresh={startRefresh}
-          editing={editing}
-          onEditing={setEditing}
         />
       </div>
     </div>
