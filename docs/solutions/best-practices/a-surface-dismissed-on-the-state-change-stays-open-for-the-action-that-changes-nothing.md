@@ -17,6 +17,8 @@ related_components: [frontend]
 
 # A surface dismissed on the state change stays open for the action that changes nothing
 
+> **The code this documents no longer exists.** The keypad was withdrawn the same day in favour of the operating system's own numeric keyboard (`docs/plans/2026-08-28-1954-fix-use-the-os-numeric-keyboard-plan.md`), which took the hand-rolled dismissal with it. The rule below is why it is kept: the trap is general, and the way it was finally escaped is worth more than the fix that preceded it. Code references point at `8a2c636`, the last commit where the mechanism was live.
+
 ## Context
 
 The bottom bar's page field gained a keypad that rises when the field is tapped (`docs/plans/2026-08-28-1854-feat-merged-page-field-and-keypad-plan.md`, R11). It has to come down again when the reader gives up on entering a number and does something else instead — taps a quick link, an arrow, home, or refresh.
@@ -74,8 +76,15 @@ Mutation-checked per this repo's standing rule in `docs/solutions/best-practices
 - Dropping `setEditing(false)` from both `go` and `startRefresh` turns exactly two tests red: `stänger knappsatsen även när kontrollen inte byter sida` (home while already on 100) and `stänger knappsatsen när sidan uppdateras`. Every other keypad test still passes — including `stänger knappsatsen när sidan byts någon annanstans ifrån`, which taps a rail link to a *different* page and so is satisfied by the old effect alone. That test is the one that made the broken mechanism look right.
 - Removing the `[pageNumber]` effect turned **nothing** red when this learning was first drafted: with `go` in place, no test reached the effect. `stänger knappsatsen när bakåtknappen byter sida` was written in response and is now the single test that fails for that mutation. Without it the effect is live code no test defends, and the next reader would be entitled to delete it.
 
+## Coda: the trap disappeared when the surface stopped being ours
+
+The keypad was replaced by the platform's numeric keyboard, and the whole dismissal problem went with it. A focused `<input>` fires `blur` the moment the reader touches any other control — quick link, arrow, home, refresh — with no view of whether the page number changed, because focus moves regardless. The bug class this doc describes cannot occur.
+
+That is the strongest form of the rule. Keying the dismissal to the action rather than to the state change was the right fix; not owning the dismissal at all was the better one. When a surface has to be put away and the trigger is fiddly to get right, it is worth asking whether the platform already has a primitive whose lifecycle *is* the trigger — focus, `<dialog>`, popover, a media session — before hand-rolling one and then hunting for the routes it misses.
+
 ## Related Issues
 
 - `docs/solutions/best-practices/an-effect-that-clears-a-flag-in-cleanup-clears-the-one-that-just-set-it.md` — the same family and partly the same file: an effect keyed on a value that does not move when the triggering action runs. That one is about the effect firing at the wrong *moment*; this one is about it not firing at all.
 - `docs/solutions/best-practices/a-carve-out-flag-in-an-effect-must-be-compared-not-consumed.md` — a third entry in the same lineage of "when does this effect actually run" questions in `src/useTextTv.ts`'s orbit.
-- `docs/plans/2026-08-28-1854-feat-merged-page-field-and-keypad-plan.md` — R25 and KTD4. R25's first wording ("any navigation … ends editing") is what invited the state-keyed reading; it now names the control rather than the page change.
+- `docs/plans/2026-08-28-1854-feat-merged-page-field-and-keypad-plan.md` — R25 and KTD4. R25's first wording ("any navigation … ends editing") is what invited the state-keyed reading; it was corrected to name the control rather than the page change.
+- `docs/plans/2026-08-28-1954-fix-use-the-os-numeric-keyboard-plan.md` — the plan that withdrew the keypad, whose KTD4 records blur as the replacement for the whole mechanism.

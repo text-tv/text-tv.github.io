@@ -54,11 +54,7 @@ A snap is interruptible. A finger landing while one is running takes it over —
 
 ## The bottom bar
 
-**Page field** — the one control that both reports the page being read and takes the page being asked for. It reads as the current number until it is tapped, at which point it becomes the entry field and shows the digits typed so far instead. There were two controls for these two jobs and they said the same thing twice; merging them means the number you are reading is the thing you tap to change it. It goes quiet — dimmed rather than replaced — while a sideways drag is far enough along to change the page, because the number is about to be wrong but the drag can still be abandoned.
-
-**Keypad** — the app's own three-digit pad, raised by the page field. It exists because a page number is three digits and nothing else: an operating-system keypad offers a keyboard's worth of answers to a question with only ten, and takes the screen on its own terms. There is no confirm key, because the third digit is the whole instruction.
-
-**Dock** — the rail, the bar and the keypad as one band at the bottom of the shell. The keypad hangs below the screen's edge and the whole dock slides up to reveal it, so the two never have to agree about where they are; the page behind is neither resized nor scrolled while it is up.
+**Page field** — the one control that both reports the page being read and takes the page being asked for. It reads as the current number until it is focused, at which point it empties and shows the digits typed so far instead. There were two controls for these two jobs and they said the same thing twice; merging them means the number you are reading is the thing you tap to change it. The keyboard that answers the tap is the phone's own — a numeric keypad is something every operating system already has, and drawing a second one in the app was tried and withdrawn. It goes quiet — dimmed rather than replaced — while a sideways drag is far enough along to change the page, because the number is about to be wrong but the drag can still be abandoned. An entry is abandoned by leaving the field, and abandoning one restores the page number rather than keeping half of a number nobody asked for.
 
 ## Flagged ambiguities
 
