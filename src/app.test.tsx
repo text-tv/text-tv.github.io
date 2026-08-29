@@ -2320,7 +2320,6 @@ describe('det synliga området', () => {
   }
 
   const heightProperty = () => document.documentElement.style.getPropertyValue('--viewport-height')
-  const offsetProperty = () => document.documentElement.style.getPropertyValue('--viewport-offset')
 
   afterEach(() => {
     Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
@@ -2377,17 +2376,23 @@ describe('det synliga området', () => {
     await waitFor(() => expect(heightProperty()).toBe('800px'))
   })
 
-  // iOS reports a negative offset while the browser's bars expand, which is
-  // what a reload lands in; translating the shell by it lifts it off screen.
-  it('lyfter inte skalet när det synliga området rapporteras ovanför sidan', async () => {
-    const viewport = useViewportStub(300)
-    openOn('100')
-    await waitFor(() => expect(offsetProperty()).toBe('0px'))
+  /*
+   * The reload bug: iOS collapses its address bar by scrolling the page under
+   * it, records that offset in the history entry, and puts it back on a
+   * reload - where, with a fixed shell and nothing to scroll, it lands as the
+   * whole page drawn a toolbar's height too high.
+   */
+  it('låter inte webbläsaren återställa någon rullning', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const { unmount } = openOn('100')
 
-    Object.assign(viewport, { offsetTop: -76 })
-    viewport.dispatchEvent(new Event('scroll'))
+    await waitFor(() => expect(history.scrollRestoration).toBe('manual'))
+    expect(scrollTo).toHaveBeenCalledWith(0, 0)
 
-    await waitFor(() => expect(offsetProperty()).toBe('0px'))
+    // The page is the only thing that asked for it, so it hands it back.
+    unmount()
+    expect(history.scrollRestoration).toBe('auto')
+    scrollTo.mockRestore()
   })
 
   it('fungerar i en webbläsare utan visualViewport', async () => {

@@ -14,16 +14,7 @@ export function useVisualViewport(): void {
     const publish = () => {
       const root = document.documentElement
       root.style.setProperty('--viewport-height', `${viewport.height}px`)
-      /*
-       * Never negative. iOS reports the visual viewport as sitting *above* the
-       * layout viewport while the browser's bars are expanding - which is the
-       * state a reload lands in - and translating the shell by that lifts it
-       * off the top of the screen, clipping the frame's first rows and leaving
-       * the same height of black under the bar. The offset this compensates
-       * for is the keyboard's and the scroll-into-view's, and both are
-       * downward; an upward one has nothing to correct.
-       */
-      root.style.setProperty('--viewport-offset', `${Math.max(0, viewport.offsetTop)}px`)
+      root.style.setProperty('--viewport-offset', `${viewport.offsetTop}px`)
     }
     publish()
 
