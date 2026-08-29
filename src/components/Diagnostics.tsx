@@ -2,14 +2,20 @@ import { useEffect, useState } from 'react'
 
 /**
  * Temporary scaffolding for a bug that only shows on a phone: the numbers the
- * shell is laid out from, painted over the page. Reached with `?diag` in the
- * query - `?diag#300` - so a reader never meets it by accident.
+ * shell is laid out from, painted over the page, and a row of buttons that
+ * each try one remedy on the spot. Reached with `?diag` in the query -
+ * `?diag#300` - so a reader never meets it by accident.
+ *
+ * The buttons are the point. Every measurement the page can take says the
+ * shell is where it asked to be, so the question is no longer what is wrong
+ * but what puts it right: whichever button fixes the picture names the cause.
  *
  * Delete this file, its CSS block and its two lines in App once the shell is
- * trusted on iOS. It exists because the interesting moment is a reload on a
- * device with no console attached, and a screenshot is the only way the
- * numbers get out.
+ * trusted on iOS.
  */
+/** The commit this bundle was built from; see the define in vite.config.ts. */
+declare const __BUILD__: string
+
 export const diagnosticsWanted = () => new URLSearchParams(window.location.search).has('diag')
 
 /** How often the live half is re-read, in ms. Slow enough to stay readable. */
@@ -30,18 +36,62 @@ const round = (value: number) => Math.round(value * 10) / 10
 const read = (probe: HTMLElement): string[] => {
   const viewport = window.visualViewport
   const shell = document.querySelector('.app')?.getBoundingClientRect()
+  const html = document.documentElement.getBoundingClientRect()
   const root = getComputedStyle(document.documentElement)
   const inset = getComputedStyle(probe)
+  const scroller = document.scrollingElement
+  const worker = navigator.serviceWorker?.controller ? 'sw styr' : 'ingen sw'
   return [
-    `inner ${window.innerWidth}x${window.innerHeight} scrollY ${round(window.scrollY)}`,
+    `bygge ${typeof __BUILD__ === 'string' ? __BUILD__ : '-'} ${worker}`,
+    `inner ${window.innerWidth}x${window.innerHeight} outer ${window.outerHeight}`,
     viewport
       ? `vv ${round(viewport.width)}x${round(viewport.height)} off ${round(viewport.offsetTop)} page ${round(viewport.pageTop)} scale ${viewport.scale}`
       : 'vv saknas',
     `css h ${root.getPropertyValue('--viewport-height') || '-'} off ${root.getPropertyValue('--viewport-offset') || '-'}`,
-    `safe t ${inset.paddingTop} b ${inset.paddingBottom}`,
+    `safe t ${inset.paddingTop} b ${inset.paddingBottom} screenY ${round(window.screenY)}`,
+    // The one that separates a moved viewport from a scrolled document: html
+    // is not fixed, so a scrolled document drags its top negative while the
+    // shell's own top stays at zero.
+    `html ${round(html.top)}..${round(html.bottom)} scroll ${round(scroller?.scrollTop ?? -1)}/${round(window.scrollY)}`,
     shell ? `app ${round(shell.top)}..${round(shell.bottom)}` : 'app saknas',
   ]
 }
+
+/**
+ * One candidate cause each, as something the reader can tap. Whichever one
+ * puts the page right is the answer; if none does, the shell is not what is
+ * displaced and the search moves to the browser's own chrome.
+ */
+const REMEDIES: { label: string; run: () => void }[] = [
+  {
+    label: 'RULLA',
+    run: () => {
+      window.scrollTo(0, 0)
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0
+    },
+  },
+  {
+    label: 'RITA OM',
+    run: () => {
+      const shell = document.querySelector('.app') as HTMLElement | null
+      if (!shell) return
+      shell.style.display = 'none'
+      void shell.offsetHeight
+      shell.style.display = ''
+    },
+  },
+  {
+    label: 'MÄT OM',
+    run: () => {
+      const viewport = window.visualViewport
+      if (!viewport) return
+      const root = document.documentElement
+      root.style.setProperty('--viewport-height', `${viewport.height}px`)
+      root.style.setProperty('--viewport-offset', `${viewport.offsetTop}px`)
+    },
+  },
+  { label: 'RESIZE', run: () => window.dispatchEvent(new Event('resize')) },
+]
 
 export function Diagnostics() {
   /*
@@ -65,5 +115,18 @@ export function Diagnostics() {
 
   // Centred, not pinned to an edge: the shell it reports on may itself be
   // drawn off the top of the screen, and so would a readout stuck to it.
-  return <pre className="diagnostics">{['VID START', ...atLoad, '', 'NU', ...now].join('\n')}</pre>
+  return (
+    <div className="diagnostics">
+      <pre className="diagnostics__numbers">
+        {['VID START', ...atLoad, '', 'NU', ...now].join('\n')}
+      </pre>
+      <div className="diagnostics__remedies">
+        {REMEDIES.map(({ label, run }) => (
+          <button key={label} type="button" className="diagnostics__remedy" onClick={run}>
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }

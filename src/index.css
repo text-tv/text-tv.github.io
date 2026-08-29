@@ -944,24 +944,44 @@ body {
 }
 
 /*
- * The `?diag` readout. Temporary scaffolding - see `Diagnostics.tsx`, and take
- * this block with it. Centred because the shell it reports on may be drawn off
- * the top of the screen, which is the bug it exists for.
+ * The `?diag` readout and its remedy buttons. Temporary scaffolding - see
+ * `Diagnostics.tsx`, and take this block with it. Centred because the shell it
+ * reports on may be drawn off the top of the screen, which is the bug it
+ * exists for.
  */
 .diagnostics {
   position: fixed;
-  top: 35%;
+  top: 30%;
   left: 8px;
   right: 8px;
   z-index: 9;
-  margin: 0;
   padding: 8px;
   border: 1px solid #00ff00;
   background: rgba(0, 0, 0, 0.85);
   color: #00ff00;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.diagnostics__numbers {
+  margin: 0;
   font-size: 11px;
   line-height: 1.35;
   white-space: pre-wrap;
-  pointer-events: none;
+}
+
+.diagnostics__remedies {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.diagnostics__remedy {
+  flex: 1;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid #00ff00;
+  background: #000;
+  color: #00ff00;
+  font: inherit;
+  font-size: 12px;
 }

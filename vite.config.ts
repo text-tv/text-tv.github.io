@@ -1,8 +1,24 @@
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/*
+ * Which build is running, for the `?diag` readout. Temporary, with the rest of
+ * that scaffolding: a phone serves the app off a service worker cache, so
+ * "does the device have my change yet" is otherwise unanswerable from a
+ * screenshot. Falls back to a dash where git is not available.
+ */
+const build = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    return '-'
+  }
+})()
+
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(build) },
   // Relative, so the build runs unchanged at a GitHub Pages project path
   // (/text-tv/) or at a domain root. Hash routing means no path ever needs
   // resolving server-side.
