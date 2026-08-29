@@ -39,6 +39,8 @@ A mark added as the row's **first** child was therefore drawn and then immediate
 
 The instinct is to reach for `z-index` instead. Do not. The rows and runs overlap their neighbours by half a pixel on purpose, to cover the cracks that open when a fractional cell width rounds two adjacent boxes apart — and that bleed only works because later siblings paint over earlier ones. The stylesheet says so where the bleed is defined: *"Beware of giving runs a stacking order: that is what makes this invisible."* Giving the mark a `z-index` would create a stacking context in the middle of that arrangement and trade an invisible mark for visible seams across the whole frame.
 
+That dependence on a later sibling is also the bleed's limit: it is a between-siblings technique only. The same crack opens *inside* a single element, between the background layers that paint one cell, and there the bleed has nowhere to go — see `a-half-pixel-bleed-only-works-between-siblings.md`.
+
 **Being last is load-bearing, so say so where it is easy to undo.** The order of two JSX siblings is exactly the kind of thing a later reader tidies. The comment belongs at the element, not only in the stylesheet.
 
 **The same trap is waiting for anything else added to a decoded row.** A focus ring, a selection highlight, a debug overlay — each one is a sibling of opaque boxes in a container that deliberately has no stacking order. Ask where it lands in paint order before asking what it looks like.
@@ -51,3 +53,4 @@ The app-level test `ritar märket efter radens egna körningar` asserts the mark
 
 - `docs/plans/2026-08-26-1826-feat-refresh-a-page-plan.md` — KTD5 and U5; the plan's first draft carried the wrong reasoning ("column 0 is blank, so nothing is painted under it to be covered") and the "What Review Changed" table records the correction.
 - `docs/solutions/best-practices/measure-generated-lookup-tables-by-holding-data-out.md` — the other place assumptions about the decoded grid had to be checked against what the resolver actually produces rather than against what teletext nominally contains.
+- `docs/solutions/best-practices/a-half-pixel-bleed-only-works-between-siblings.md` — the boundary of the bleed this doc depends on, and what to do inside a single element instead.

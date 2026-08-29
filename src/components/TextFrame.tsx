@@ -13,30 +13,46 @@ interface Props {
 }
 
 /**
- * A mosaic cell's six sextants, as three stacked background bands.
+ * A mosaic cell's six sextants, as two overlapping background layers.
  *
- * The bands are neither halves nor thirds: SVT splits x at 6 and y at 5 and 11,
+ * The splits are neither halves nor thirds: SVT splits x at 6 and y at 5 and 11,
  * and only these proportions tile with the neighbouring cells. One element per
  * cell rather than seven - a page carries hundreds of them.
+ *
+ * Left and right are two layers rather than one split three ways so that no
+ * boundary inside the cell is a butt joint. A cell is a fraction of the
+ * container's width, so none of its boundaries lands on a whole device pixel,
+ * and two independently rasterised bands meeting at one would round apart and
+ * let the cell's own background through as a hairline across a block of solid
+ * colour - the same crack the row and run bleeds cover between cells, one level
+ * in. Here the y splits are hard stops inside a single gradient, and the x split
+ * is an overlap, so neither can open.
  */
 const MOSAIC_SPLIT_X = 'calc(100% * 6 / 13)'
-/** Each band's height, and the position that lands it at its own y offset. */
-const MOSAIC_BANDS = [
-  { size: '100% 31.25%', position: '0 0%' },
-  { size: '100% 37.5%', position: '0 50%' },
-  { size: '100% 31.25%', position: '0 100%' },
-]
+/** SVT's y splits at 5 and 11 of 16, as the stops that divide a column's bands. */
+const MOSAIC_SPLIT_Y = ['31.25%', '68.75%']
 
-/** Bit order, top-left first and bottom-right last; an unlit sextant is background. */
+/**
+ * One column of a cell as a single top-to-bottom gradient.
+ *
+ * Bit order is top-left first and bottom-right last, so a column's three bits
+ * are `band * 2 + side`; an unlit sextant is the cell's background.
+ */
+const mosaicColumn = (bits: number, side: 0 | 1, fg: string, bg: string) => {
+  const band = (index: number) => ((bits >> (index * 2 + side)) & 1 ? fg : bg)
+  const [upper, lower] = MOSAIC_SPLIT_Y
+  return `linear-gradient(to bottom, ${band(0)} 0 ${upper}, ${band(1)} ${upper} ${lower}, ${band(2)} ${lower} 100%)`
+}
+
 const mosaicStyle = (bits: number, fg: string, bg: string): CSSProperties => ({
   backgroundColor: bg,
-  backgroundImage: MOSAIC_BANDS.map((_, band) => {
-    const left = (bits >> (band * 2)) & 1 ? fg : bg
-    const right = (bits >> (band * 2 + 1)) & 1 ? fg : bg
-    return `linear-gradient(to right, ${left} ${MOSAIC_SPLIT_X}, ${right} ${MOSAIC_SPLIT_X})`
-  }).join(', '),
-  backgroundSize: MOSAIC_BANDS.map((band) => band.size).join(', '),
-  backgroundPosition: MOSAIC_BANDS.map((band) => band.position).join(', '),
+  // The left column is listed first, so it paints over the right one, which is
+  // given the whole cell to sit under it. The order is not cosmetic: reversing
+  // it would not move the x split but erase it, since the full-width layer would
+  // then cover the cell and draw every sextant in the right column's colours.
+  backgroundImage: `${mosaicColumn(bits, 0, fg, bg)}, ${mosaicColumn(bits, 1, fg, bg)}`,
+  // Both layers sit at the default 0 0; only the left one is narrowed.
+  backgroundSize: `${MOSAIC_SPLIT_X} 100%, 100% 100%`,
 })
 
 /** Grid coordinates travel as custom properties; the CSS turns them into a box. */

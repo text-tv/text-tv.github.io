@@ -10,6 +10,8 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 
 **Frame** — the picture of one sub-page as the upstream service publishes it: a fixed-size image, never text. Everything the reader sees on a page originates as a frame, so anything the app wants to know about a page's content it must recover from one.
 
+**Decoded frame** — a sub-page redrawn from its frame as real text and painted boxes, rather than shown as the picture itself. The frame is the source; the decoded frame is what the reader actually looks at, and it is what makes a page selectable and sharp at any size. Recovery is per cell, so a cell the app cannot read falls back to showing its own slice of the frame and the two coexist within one page; only a cell that breaks the grid's assumptions outright sends the whole sub-page back to the picture.
+
 **Not broadcast** — a page number that exists in the numbering but carries no content right now. It is a normal, expected answer rather than an error, and the upstream service reports it with a successful response, so success is decided by the payload rather than by the transport.
 
 ## Fetching and freshness
@@ -28,11 +30,17 @@ A refresh is also shown for a minimum time, whether or not it needed one. A page
 
 **Cell** — one character position in a frame. A frame is a fixed grid of them, and every cell holds one background colour, one foreground colour, and a bitmap saying which pixels are which. Teletext's palette is eight colours and colour is set per cell, which is why a run of same-coloured cells is the natural unit to draw.
 
+**Run** — a span of neighbouring cells in a row sharing their colours, drawn as one box rather than one box per cell. Runs are the unit the decoded frame paints.
+
+Runs and rows carry no stacking order on purpose, so what covers what is decided only by which is drawn later. That is load-bearing twice over: it is how each box's deliberate overlap with its neighbour stays invisible, and it is why anything added to a row must come after the row's own runs to be seen at all.
+
 **Glyph** — what a cell's bitmap draws: either a character, or block graphics. The distinction matters because only one of the two is text.
 
 **Glyph table** — the mapping from a cell bitmap to the character it draws, built ahead of time from captured pages and shipped with the app. It is what makes it possible to render a page as text at all, since the upstream service publishes no characters. A bitmap the table has never seen is named from the page's own alt text instead; only where that cannot be aligned does the cell fall back to showing itself as a picture, so an unrecognised glyph costs a cell rather than a page.
 
-**Mosaic** — a cell of block graphics rather than a letter: a small fixed arrangement of solid blocks, used for logos, rules and coloured banners. Mosaics carry no character, so they are drawn as shapes and are absent from any text the page yields.
+**Mosaic** — a cell of block graphics rather than a letter: its area divided into sextants, each lit or unlit, used for logos, rules and coloured banners. Mosaics carry no character, so they are drawn as shapes and are absent from any text the page yields.
+
+**Sextant** — one of the six regions a mosaic cell is divided into: two columns by three rows, split unevenly rather than into equal thirds. Each sextant is either lit in the cell's foreground colour or left as its background, so a mosaic is described by which of its six are lit rather than by a glyph. The uneven split is broadcast geometry, not a rendering choice — only those proportions tile with the neighbouring cells.
 
 **Double height** — a row drawn at twice its normal height, used for headlines. The stretch is vertical only: a double-height character still occupies one column, and it spans two grid rows, the lower of which is not a row of its own.
 

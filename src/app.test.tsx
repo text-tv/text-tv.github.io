@@ -183,6 +183,44 @@ describe('läsa en sida', () => {
     expect((slices[0] as HTMLElement).style.backgroundImage).toContain('data:image/gif;base64,')
   })
 
+  // A mosaic cell is painted as two overlapping background layers rather than
+  // three stacked bands, so that no boundary inside it is a butt joint that
+  // fractional-pixel rounding can crack open. Neither half of that arrangement
+  // can be seen by this suite - happy-dom computes no layout and never loads
+  // the stylesheet - but both are visible in the inline style, and both fail
+  // silently in a browser when they go wrong: reversing the layers erases the x
+  // split, and swapping the sides mirrors every cell.
+  it('målar en mosaikruta som två lager, det smala vänstra överst', async () => {
+    openOn('100')
+    await drawnFrames(1)
+
+    const mosaics = [...document.querySelectorAll('.text-frame__mosaic')] as HTMLElement[]
+    expect(mosaics.length).toBeGreaterThan(0)
+    for (const cell of mosaics) {
+      // The narrow left column is first, so it paints over the right one. Were
+      // the full-width layer listed first it would cover the cell instead.
+      expect(cell.style.backgroundSize).toMatch(/^calc\(100% \* 6 \/ 13\) 100%, 100% 100%$/)
+      // Two layers, each one gradient carrying both y splits as hard stops.
+      expect(cell.style.backgroundImage.match(/linear-gradient/g)).toHaveLength(2)
+    }
+
+    // Row 1, column 3 is the first cell of the SVT Text banner. Only its
+    // bottom-right sextant is lit (bits = 32), so it is asymmetric in both
+    // axes: a swapped side or a swapped band order shows up here instead of
+    // cancelling itself out on a symmetric cell.
+    const row = document.querySelector('.text-frame__row[style*="--row: 1"]')
+    const cell = [...(row?.querySelectorAll('.text-frame__mosaic') ?? [])].find(
+      (element) => (element as HTMLElement).style.getPropertyValue('--col') === '3',
+    ) as HTMLElement
+    const [left, right] = cell.style.backgroundImage.split(/,\s*(?=linear-gradient)/)
+    // Bits 0, 2 and 4 are the left column and are all unlit, so it is the
+    // background colour throughout; bits 1 and 3 are unlit and bit 5 is not, so
+    // the foreground appears in the right column's last band and nowhere else.
+    expect(left).not.toContain('#ffffff')
+    expect(right).toMatch(/68\.75% 100%\)$/)
+    expect(right.indexOf('#ffffff')).toBeGreaterThan(right.indexOf('68.75%'))
+  })
+
   it('läser ett tecken tabellen saknar ur sidans egen alt-text', async () => {
     addUnseenCell()
     openOn('100')

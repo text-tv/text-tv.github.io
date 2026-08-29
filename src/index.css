@@ -469,6 +469,12 @@ body {
  * Block graphics as painted bands rather than a character, so they never depend
  * on the face having sextant glyphs. The bands are the ones SVT draws: x splits
  * at 6 of 13, y at 5 and 11 of 16, so neighbouring cells tile without a seam.
+ *
+ * Inside a cell the seam is covered a different way, because a bleed has
+ * nowhere to go: the six sextants are painted as two overlapping layers, the y
+ * splits as hard stops within one gradient and the x split as the left layer
+ * lying over a full-width right one (see `mosaicStyle`). no-repeat is what
+ * stops that narrow left layer tiling across the rest of the cell.
  */
 .text-frame__mosaic {
   background-repeat: no-repeat;
