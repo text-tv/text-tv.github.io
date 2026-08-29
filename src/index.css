@@ -20,6 +20,15 @@
  */
 :root {
   --bar-height: 56px;
+  /*
+   * Half of the home-indicator strip, not all of it. iOS reserves 34pt at the
+   * bottom and only asks that nothing tappable sit in it; painting the whole
+   * strip the bar's own black left a centimetre of dead space under the arrows,
+   * since bar and inset are the same colour and read as one band. Half keeps
+   * the controls out of the swipe-up gesture while pulling them down to about
+   * where a native bar puts them.
+   */
+  --bar-inset: calc(env(safe-area-inset-bottom, 0px) * 0.5);
   --rail-height: 44px;
   --freshness-height: 26px;
   /* Both the strip's height and where the track parks during the fetch. */
@@ -59,7 +68,7 @@
    */
   --frame-budget: calc(
     var(--viewport-height) - var(--freshness-height) - var(--rail-height) -
-      var(--bar-height) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+      var(--bar-height) - env(safe-area-inset-top, 0px) - var(--bar-inset)
   );
   --frame-max: clamp(
     560px,
@@ -728,8 +737,8 @@ body {
   /* As .freshness and .rail: declared, and held at that height rather than
      squeezed when the keyboard shortens the shell under it. */
   flex: 0 0 auto;
-  height: calc(var(--bar-height) + env(safe-area-inset-bottom));
-  padding: 0 0 env(safe-area-inset-bottom);
+  height: calc(var(--bar-height) + var(--bar-inset));
+  padding: 0 0 var(--bar-inset);
   background: #000;
   border-top: 1px solid #1c1c1c;
 }
