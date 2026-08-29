@@ -21,14 +21,14 @@
 :root {
   --bar-height: 56px;
   /*
-   * Half of the home-indicator strip, not all of it. iOS reserves 34pt at the
-   * bottom and only asks that nothing tappable sit in it; painting the whole
-   * strip the bar's own black left a centimetre of dead space under the arrows,
-   * since bar and inset are the same colour and read as one band. Half keeps
-   * the controls out of the swipe-up gesture while pulling them down to about
-   * where a native bar puts them.
+   * A quarter of the home-indicator strip, not all of it. iOS reserves 34pt
+   * at the bottom and only asks that nothing tappable sit in it; painting the
+   * whole strip the bar's own black left a centimetre of dead space under the
+   * arrows, since bar and inset are the same colour and read as one band. A
+   * quarter - about 8pt - keeps the arrows off the indicator itself while
+   * sitting lower than a native tab bar, which is what the black shell wants.
    */
-  --bar-inset: calc(env(safe-area-inset-bottom, 0px) * 0.5);
+  --bar-inset: calc(env(safe-area-inset-bottom, 0px) * 0.25);
   --rail-height: 44px;
   --freshness-height: 26px;
   /* Both the strip's height and where the track parks during the fetch. */
