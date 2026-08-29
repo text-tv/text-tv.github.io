@@ -36,8 +36,6 @@ const round = (value: number) => Math.round(value * 10) / 10
 /** The page's own viewport declaration, which the remedies below rewrite. */
 const viewportMeta = () => document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
 
-const BASE_VIEWPORT = 'width=device-width, initial-scale=1, user-scalable=no'
-
 const read = (probe: HTMLElement): string[] => {
   const viewport = window.visualViewport
   const shell = document.querySelector('.app')?.getBoundingClientRect()
@@ -56,6 +54,7 @@ const read = (probe: HTMLElement): string[] => {
     `safe t ${inset.paddingTop} b ${inset.paddingBottom} screenY ${round(window.screenY)}`,
     `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
     `meta ${viewportMeta()?.content ?? '-'}`,
+    `skal ${document.documentElement.className || 'av'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
     // shell's own top stays at zero.
@@ -69,30 +68,21 @@ const read = (probe: HTMLElement): string[] => {
  * puts the page right is the answer; if none does, the shell is not what is
  * displaced and the search moves to the browser's own chrome.
  */
-const REMEDIES: { label: string; run: () => void }[] = [
-  /*
-   * The suspect. `viewport-fit=cover` asks the browser to lay the page out
-   * edge to edge, under the system bars, on the promise that the page will
-   * keep its own content clear using env(safe-area-inset-*) - and those
-   * insets report 0px here. Turning cover off should drop the shell back into
-   * the slot the browser actually shows.
-   */
-  { label: 'COVER AV', run: () => viewportMeta()?.setAttribute('content', BASE_VIEWPORT) },
-  {
-    label: 'COVER PÅ',
-    run: () => viewportMeta()?.setAttribute('content', `${BASE_VIEWPORT}, viewport-fit=cover`),
-  },
-  {
-    label: 'RITA OM',
-    run: () => {
-      const shell = document.querySelector('.app') as HTMLElement | null
-      if (!shell) return
-      shell.style.display = 'none'
-      void shell.offsetHeight
-      shell.style.display = ''
-    },
-  },
-]
+/**
+ * Candidate shells, each a class on the root element and a block of CSS in
+ * index.css. The bug lives in where the browser rests a page whose layout
+ * viewport is taller than the slot it shows, so these vary how the shell
+ * relates to that layout viewport: filling it, anchored to its bottom, or
+ * sized to the dynamic viewport so nothing overflows and there is no travel
+ * to rest at the wrong end of. Whichever lands the page correctly is the fix.
+ */
+const SHELLS = ['AV', 'DVH', 'FLOW', 'BOTTEN', 'FYLL'] as const
+
+const applyShell = (shell: string) => {
+  const root = document.documentElement
+  root.classList.remove('diag-dvh', 'diag-flow', 'diag-botten', 'diag-fyll')
+  if (shell !== 'AV') root.classList.add(`diag-${shell.toLowerCase()}`)
+}
 
 export function Diagnostics() {
   /*
@@ -122,9 +112,14 @@ export function Diagnostics() {
         {['VID START', ...atLoad, '', 'NU', ...now].join('\n')}
       </pre>
       <div className="diagnostics__remedies">
-        {REMEDIES.map(({ label, run }) => (
-          <button key={label} type="button" className="diagnostics__remedy" onClick={run}>
-            {label}
+        {SHELLS.map((shell) => (
+          <button
+            key={shell}
+            type="button"
+            className="diagnostics__remedy"
+            onClick={() => applyShell(shell)}
+          >
+            {shell}
           </button>
         ))}
       </div>
