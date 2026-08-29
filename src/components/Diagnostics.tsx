@@ -33,6 +33,11 @@ const insetProbe = () => {
 
 const round = (value: number) => Math.round(value * 10) / 10
 
+/** The page's own viewport declaration, which the remedies below rewrite. */
+const viewportMeta = () => document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
+
+const BASE_VIEWPORT = 'width=device-width, initial-scale=1, user-scalable=no'
+
 const read = (probe: HTMLElement): string[] => {
   const viewport = window.visualViewport
   const shell = document.querySelector('.app')?.getBoundingClientRect()
@@ -49,6 +54,8 @@ const read = (probe: HTMLElement): string[] => {
       : 'vv saknas',
     `css h ${root.getPropertyValue('--viewport-height') || '-'} off ${root.getPropertyValue('--viewport-offset') || '-'}`,
     `safe t ${inset.paddingTop} b ${inset.paddingBottom} screenY ${round(window.screenY)}`,
+    `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
+    `meta ${viewportMeta()?.content ?? '-'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
     // shell's own top stays at zero.
@@ -63,12 +70,17 @@ const read = (probe: HTMLElement): string[] => {
  * displaced and the search moves to the browser's own chrome.
  */
 const REMEDIES: { label: string; run: () => void }[] = [
+  /*
+   * The suspect. `viewport-fit=cover` asks the browser to lay the page out
+   * edge to edge, under the system bars, on the promise that the page will
+   * keep its own content clear using env(safe-area-inset-*) - and those
+   * insets report 0px here. Turning cover off should drop the shell back into
+   * the slot the browser actually shows.
+   */
+  { label: 'COVER AV', run: () => viewportMeta()?.setAttribute('content', BASE_VIEWPORT) },
   {
-    label: 'RULLA',
-    run: () => {
-      window.scrollTo(0, 0)
-      if (document.scrollingElement) document.scrollingElement.scrollTop = 0
-    },
+    label: 'COVER PÅ',
+    run: () => viewportMeta()?.setAttribute('content', `${BASE_VIEWPORT}, viewport-fit=cover`),
   },
   {
     label: 'RITA OM',
@@ -80,17 +92,6 @@ const REMEDIES: { label: string; run: () => void }[] = [
       shell.style.display = ''
     },
   },
-  {
-    label: 'MÄT OM',
-    run: () => {
-      const viewport = window.visualViewport
-      if (!viewport) return
-      const root = document.documentElement
-      root.style.setProperty('--viewport-height', `${viewport.height}px`)
-      root.style.setProperty('--viewport-offset', `${viewport.offsetTop}px`)
-    },
-  },
-  { label: 'RESIZE', run: () => window.dispatchEvent(new Event('resize')) },
 ]
 
 export function Diagnostics() {
