@@ -2332,15 +2332,22 @@ describe('det synliga området', () => {
     await waitFor(() => expect(heightProperty()).toBe('300px'))
   })
 
-  it('följer med när tangentbordet ändrar höjden', async () => {
+  /*
+   * Only the keyboard is pinned to. A visible region the size of the window is
+   * the browser's own business, and the shell reads its height from svh - so
+   * the hook hands everything back rather than naming a number of its own.
+   */
+  it('lämnar skalet i flödet när tangentbordet stängs', async () => {
     const viewport = useViewportStub(300)
     openOn('100')
     await waitFor(() => expect(heightProperty()).toBe('300px'))
+    expect(document.documentElement.dataset.keyboard).toBe('')
 
-    viewport.height = 700
+    viewport.height = window.innerHeight
     viewport.dispatchEvent(new Event('resize'))
 
-    await waitFor(() => expect(heightProperty()).toBe('700px'))
+    await waitFor(() => expect(heightProperty()).toBe(''))
+    expect(document.documentElement.dataset.keyboard).toBeUndefined()
   })
 
   it('lämnar inga värden kvar när appen stängs', async () => {
@@ -2357,7 +2364,7 @@ describe('det synliga området', () => {
   // AE2. happy-dom lays nothing out, so this pins the wiring: the shell follows
   // the shrunken viewport and three digits still navigate while it is shrunk.
   it('går till sidan man skriver medan tangentbordet är uppe', async () => {
-    const viewport = useViewportStub(800)
+    const viewport = useViewportStub(window.innerHeight)
     openOn('377')
     await currentPage('377')
 
@@ -2371,9 +2378,9 @@ describe('det synliga området', () => {
 
     await currentPage('100')
 
-    viewport.height = 800
+    viewport.height = window.innerHeight
     viewport.dispatchEvent(new Event('resize'))
-    await waitFor(() => expect(heightProperty()).toBe('800px'))
+    await waitFor(() => expect(heightProperty()).toBe(''))
   })
 
   /*
@@ -2388,6 +2395,14 @@ describe('det synliga området', () => {
 
     await waitFor(() => expect(history.scrollRestoration).toBe('manual'))
     expect(scrollTo).toHaveBeenCalledWith(0, 0)
+
+    // Nested scroll containers are restored separately, and scrollRestoration
+    // does not cover them - so a page taken out of the back-forward cache with
+    // a sheet parked mid-page has that put back by hand too.
+    const sheet = document.querySelector('.swipe-sheet') as HTMLElement
+    sheet.scrollTop = 120
+    window.dispatchEvent(new Event('pageshow'))
+    expect(sheet.scrollTop).toBe(0)
 
     // The page is the only thing that asked for it, so it hands it back.
     unmount()
