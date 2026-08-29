@@ -973,43 +973,9 @@ body {
   color: var(--dim);
 }
 
-/*
- * The shells the `?diag` buttons try, each varying how the shell relates to a
- * layout viewport that is taller than the slot the browser shows. Temporary,
- * with the rest of that scaffolding.
- */
-
-/* Nothing overflows, so there is no travel to rest at the wrong end of. */
-.diag-dvh,
-.diag-dvh body {
-  height: 100dvh;
-}
-
+/* The one shell the `?diag` buttons still swap to. Temporary, with the rest. */
 .diag-dvh .app {
   height: 100dvh;
-}
-
-/* The same, with the shell in the document rather than pinned to the viewport. */
-.diag-flow,
-.diag-flow body {
-  height: 100dvh;
-}
-
-.diag-flow .app {
-  position: static;
-  height: 100dvh;
-  transform: none;
-}
-
-/* Pinned to the bottom of the layout viewport, which is where the slot rests. */
-.diag-botten .app {
-  top: auto;
-  bottom: 0;
-}
-
-/* Filling the layout viewport rather than the visible region. */
-.diag-fyll .app {
-  height: 100%;
 }
 
 /*

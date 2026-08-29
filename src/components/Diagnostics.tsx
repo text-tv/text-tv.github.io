@@ -54,7 +54,7 @@ const read = (probe: HTMLElement): string[] => {
     `safe t ${inset.paddingTop} b ${inset.paddingBottom} screenY ${round(window.screenY)}`,
     `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
     `meta ${viewportMeta()?.content ?? '-'}`,
-    `skal ${document.documentElement.className || 'av'}`,
+    `skal ${document.documentElement.className || 'av'} rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
     // shell's own top stays at zero.
@@ -69,20 +69,57 @@ const read = (probe: HTMLElement): string[] => {
  * displaced and the search moves to the browser's own chrome.
  */
 /**
- * Candidate shells, each a class on the root element and a block of CSS in
- * index.css. The bug lives in where the browser rests a page whose layout
- * viewport is taller than the slot it shows, so these vary how the shell
- * relates to that layout viewport: filling it, anchored to its bottom, or
- * sized to the dynamic viewport so nothing overflows and there is no travel
- * to rest at the wrong end of. Whichever lands the page correctly is the fix.
+ * The shell is now a flow box exactly one slot tall, so the page has no scroll
+ * range at all - and the displacement survived that. Which leaves the offset
+ * living in the browser's own scroll view, where the page can only reach it by
+ * causing a real scroll. These two try that, one temporarily and one for good.
  */
-const SHELLS = ['AV', 'DVH', 'FLOW', 'BOTTEN', 'FYLL'] as const
-
-const applyShell = (shell: string) => {
-  const root = document.documentElement
-  root.classList.remove('diag-dvh', 'diag-flow', 'diag-botten', 'diag-fyll')
-  if (shell !== 'AV') root.classList.add(`diag-${shell.toLowerCase()}`)
-}
+const REMEDIES: { label: string; run: () => void }[] = [
+  {
+    // Borrow a scroll range for three frames, scroll down and back up, give it
+    // back. An upward scroll to the top is what makes a browser re-apply its
+    // chrome insets; there is currently nothing in the page that can produce
+    // one.
+    label: 'KNUFF',
+    run: () => {
+      const root = document.documentElement
+      const spacer = document.createElement('div')
+      spacer.style.height = '200px'
+      document.body.append(spacer)
+      root.style.overflowY = 'auto'
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 200)
+        requestAnimationFrame(() => {
+          window.scrollTo(0, 0)
+          requestAnimationFrame(() => {
+            spacer.remove()
+            root.style.overflowY = ''
+          })
+        })
+      })
+    },
+  },
+  {
+    // The other way round: keep a real range for good, so the browser's offset
+    // is an ordinary document scroll - one the page can see, clamp and set.
+    label: 'LVH',
+    run: () => {
+      document.body.style.minHeight = '100lvh'
+      window.scrollTo(0, 0)
+    },
+  },
+  {
+    label: 'DVH',
+    run: () => document.documentElement.classList.toggle('diag-dvh'),
+  },
+  {
+    label: 'AV',
+    run: () => {
+      document.documentElement.classList.remove('diag-dvh', 'diag-flow', 'diag-botten', 'diag-fyll')
+      document.body.style.minHeight = ''
+    },
+  },
+]
 
 export function Diagnostics() {
   /*
@@ -112,14 +149,9 @@ export function Diagnostics() {
         {['VID START', ...atLoad, '', 'NU', ...now].join('\n')}
       </pre>
       <div className="diagnostics__remedies">
-        {SHELLS.map((shell) => (
-          <button
-            key={shell}
-            type="button"
-            className="diagnostics__remedy"
-            onClick={() => applyShell(shell)}
-          >
-            {shell}
+        {REMEDIES.map(({ label, run }) => (
+          <button key={label} type="button" className="diagnostics__remedy" onClick={run}>
+            {label}
           </button>
         ))}
       </div>
