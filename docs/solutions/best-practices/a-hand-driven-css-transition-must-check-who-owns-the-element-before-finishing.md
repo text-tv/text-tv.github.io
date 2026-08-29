@@ -19,11 +19,11 @@ related_components: [frontend]
 
 ## Context
 
-The swipe gesture writes `transform` straight to the track element while the finger is down, and on release hands the rest to CSS: it sets a transition, sets the target, and lets `transitionend` finish the job (`src/useSwipeNavigation.ts:308-312`). `settle` is that finisher — it performs the queued page change, or springs a cancelled snap back to centre (`src/useSwipeNavigation.ts:250-269`).
+The swipe gesture writes `transform` straight to the track element while the finger is down, and on release hands the rest to CSS: it sets a transition, sets the target, and lets `transitionend` finish the job (where the gesture hands the track back to CSS in `src/useSwipeNavigation.ts`). `settle` is that finisher — it performs the queued page change, or springs a cancelled snap back to centre (`settle` in `src/useSwipeNavigation.ts`).
 
 That handler is not reached only from the happy path. Two other states can hold the track when it runs, and review found the hook mishandling both. They are the same mistake twice: a completion path assuming it is still the animation's owner.
 
-The first is self-inflicted. A reader is allowed to press again mid-snap and take the animation over — the sheet stays put and the page change it was going to make is abandoned (`src/useSwipeNavigation.ts:194-199`). The takeover clears the transition, and clearing a running transition makes the browser fire `transitioncancel`, which is bound to `settle` (`src/useSwipeNavigation.ts:340`). The takeover provoked the very handler that would undo it.
+The first is self-inflicted. A reader is allowed to press again mid-snap and take the animation over — the sheet stays put and the page change it was going to make is abandoned (the takeover branch of `onPointerDown` in `src/useSwipeNavigation.ts`). The takeover clears the transition, and clearing a running transition makes the browser fire `transitioncancel`, which is bound to `settle` (where `transitioncancel` is bound in `src/useSwipeNavigation.ts`). The takeover provoked the very handler that would undo it.
 
 The second is a gap. Navigation goes through the URL hash, so `navigate` only assigns `window.location.hash` and a listener applies it a frame or more later; the transform is deliberately held at its committed offset until the render carrying the new page lands, because resetting sooner paints the outgoing page snapped back to centre (KTD5, `docs/plans/2026-08-25-2005-feat-swipe-follows-the-finger-plan.md:144`). That window is enterable. A quick reader starts a new gesture inside it, and the delayed reset then wipes the new gesture's transform and unmounts the sheets it is dragging toward.
 
@@ -38,7 +38,7 @@ const settle = () => {
 }
 ```
 
-**Split "always" from "only if still mine".** The delayed half of the swap does two things, and only one of them is conditional (`src/useSwipeNavigation.ts:119-137`). The rotation that makes the neighbour's decoded sheet the current one must happen on every page change, so it runs first; the transform reset and the dragging flag are what a live gesture owns, so the effect returns before them:
+**Split "always" from "only if still mine".** The delayed half of the swap does two things, and only one of them is conditional (the split swap in `src/useSwipeNavigation.ts`). The rotation that makes the neighbour's decoded sheet the current one must happen on every page change, so it runs first; the transform reset and the dragging flag are what a live gesture owns, so the effect returns before them:
 
 ```ts
 latest.current.onSwap(direction)
@@ -78,9 +78,9 @@ if (motion && moving?.style.transition) {
 }
 ```
 
-`queued.current = undefined` was the intended defence — abandon the page change — but the `transitioncancel` it provoked reached `settle`, which fell through to the cancelled-snap branch and reset the transform and the dragging flag anyway. The guard at `src/useSwipeNavigation.ts:254` is what makes the abandonment stick.
+`queued.current = undefined` was the intended defence — abandon the page change — but the `transitioncancel` it provoked reached `settle`, which fell through to the cancelled-snap branch and reset the transform and the dragging flag anyway. The guard at `settle`'s ownership guard in `src/useSwipeNavigation.ts` is what makes the abandonment stick.
 
-`src/app.test.tsx:942` is the regression guard: it grabs the track mid-snap, dispatches `transitioncancel` by hand, and asserts the grab still owns the transform, the neighbour sheets are still mounted, and the page never changed. `src/app.test.tsx:969` is the other one — it commits a swipe, starts a second gesture before the hash lands, and asserts the new gesture's offset survives the page change. Both were verified to go red with their guard deleted, which is the check this repo already uses for anything claiming to test a guard.
+`överlever avbrottet som greppet självt utlöser` in `src/app.test.tsx` is the regression guard: it grabs the track mid-snap, dispatches `transitioncancel` by hand, and asserts the grab still owns the transform, the neighbour sheets are still mounted, and the page never changed. `låter inte det försenade sidbytet rycka undan nästa gest` in `src/app.test.tsx` is the other one — it commits a swipe, starts a second gesture before the hash lands, and asserts the new gesture's offset survives the page change. Both were verified to go red with their guard deleted, which is the check this repo already uses for anything claiming to test a guard.
 
 ## Related
 

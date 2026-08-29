@@ -67,4 +67,4 @@ Snapping quantises away exactly the noise the conversion introduces, without dis
 
 ## Related Issues
 
-- The same class of environment blindness produced a second bug in this work: double-height rows were sized with a larger `font-size`, which widens glyphs as well as raising them, so headlines drew twice their column width and were clipped. No test could see it either — the test DOM performs no layout. Both were found only by looking at the running app.
+- The same class of environment blindness produced a second bug in this work: double-height rows were sized with a larger `font-size`, which widens glyphs as well as raising them, so headlines drew twice their column width and were clipped. No test could see it either — the test DOM performs no layout. Both were found only by looking at the running app. `docs/solutions/best-practices/the-suite-never-loads-the-stylesheet-so-a-green-run-is-silent-about-layout.md` generalises that half: the suite loads no stylesheet either, so appearance needs a real browser rather than a better test.

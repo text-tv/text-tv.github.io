@@ -17,7 +17,7 @@ related_components: [frontend]
 
 # A surface dismissed on the state change stays open for the action that changes nothing
 
-> **The code this documents no longer exists.** The keypad was withdrawn the same day in favour of the operating system's own numeric keyboard (`docs/plans/2026-08-28-1954-fix-use-the-os-numeric-keyboard-plan.md`), which took the hand-rolled dismissal with it. The rule below is why it is kept: the trap is general, and the way it was finally escaped is worth more than the fix that preceded it. Code references point at `8a2c636`, the last commit where the mechanism was live.
+> **The code this documents no longer exists.** The keypad was withdrawn the same day in favour of the operating system's own numeric keyboard (`docs/plans/2026-08-28-1954-fix-use-the-os-numeric-keyboard-plan.md`), which took the hand-rolled dismissal with it. The rule below is why it is kept: the trap is general, and the way it was finally escaped is worth more than the fix that preceded it. Code and test references point at `0bac1bf`, the last commit carrying both the mechanism and the tests below; `43d44a9` is where it was deleted. Do not grep today's tree for the test names in Verification — they went with the feature, and one of them now names a different test that asserts the opposite (`behåller det man skrivit när bakåtknappen byter sida under det`, which checks that a page change *preserves* what you typed into the field that replaced the keypad).
 
 ## Context
 
@@ -74,7 +74,7 @@ and the same line at the top of `startRefresh`. `go` then replaces `navigate` at
 Mutation-checked per this repo's standing rule in `docs/solutions/best-practices/synthetic-events-produce-no-follow-on-events.md`, against `src/app.test.tsx` as it stands on 2026-08-28:
 
 - Dropping `setEditing(false)` from both `go` and `startRefresh` turns exactly two tests red: `stänger knappsatsen även när kontrollen inte byter sida` (home while already on 100) and `stänger knappsatsen när sidan uppdateras`. Every other keypad test still passes — including `stänger knappsatsen när sidan byts någon annanstans ifrån`, which taps a rail link to a *different* page and so is satisfied by the old effect alone. That test is the one that made the broken mechanism look right.
-- Removing the `[pageNumber]` effect turned **nothing** red when this learning was first drafted: with `go` in place, no test reached the effect. `stänger knappsatsen när bakåtknappen byter sida` was written in response and is now the single test that fails for that mutation. Without it the effect is live code no test defends, and the next reader would be entitled to delete it.
+- Removing the `[pageNumber]` effect turned **nothing** red when this learning was first drafted: with `go` in place, no test reached the effect. `stänger knappsatsen när bakåtknappen byter sida` was written in response and was, at `0bac1bf`, the single test that failed for that mutation. Without it the effect is live code no test defends, and the next reader would be entitled to delete it.
 
 ## Coda: the trap disappeared when the surface stopped being ours
 

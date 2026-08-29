@@ -18,7 +18,7 @@ related_components: [frontend]
 
 ## Context
 
-The suite fakes the network at the HTTP boundary with msw and asserts against `requestedPages()` — the list of page numbers the app has asked for (`src/test/server.ts:57-59`). That log is the natural way to test the prefetch, because a prefetch has no other user-visible trace until the reader swipes onto it.
+The suite fakes the network at the HTTP boundary with msw and asserts against `requestedPages()` — the list of page numbers the app has asked for (the page handler in `src/test/server.ts`). That log is the natural way to test the prefetch, because a prefetch has no other user-visible trace until the reader swipes onto it.
 
 Widening the prefetch window to two pages forward made the app derive one fetch from another fetch's *payload*: the page two forward is named only by the page one forward, so it can only be asked for once that first neighbour's response has been parsed. The tests written against that change asserted request sets, and two separate things went wrong — both of which the request log actively disguised.
 
@@ -31,7 +31,7 @@ requested.push(page)
 await held.get(page)
 ```
 
-(`src/test/server.ts:85-86`, and the `await` is what `holdPage` suspends on.) So `waitFor(() => expect(requestedPages()).toHaveLength(4))` returns while the fourth response is still in flight. Any assertion about state derived from that response — here, the fifth request the payload names — is then racing a fixed `settled()` sleep of 50 ms (`src/app.test.tsx:1242`) against a whole round trip. It passes on an idle machine and fails under load, roughly once in ten runs.
+(the held-page branch of `src/test/server.ts`, and the `await` is what `holdPage` suspends on.) So `waitFor(() => expect(requestedPages()).toHaveLength(4))` returns while the fourth response is still in flight. Any assertion about state derived from that response — here, the fifth request the payload names — is then racing a fixed `settled()` sleep of 50 ms (the `settled()` call in `src/app.test.tsx`) against a whole round trip. It passes on an idle machine and fails under load, roughly once in ten runs.
 
 Wait on the causal signal instead of the clock:
 
@@ -41,7 +41,7 @@ await waitFor(() => expect(requestedPages()).toContain('107'))
 
 `107` is only reachable once `106`'s payload has been read, so waiting for it waits for the thing that actually has to have happened.
 
-**A negative assertion about a page nothing names is vacuous.** Only `100`, `104`, `105`, `200`, `331` and `377` have captured fixtures; every other number answers `status: "fail"` with empty `prevPage`/`nextPage` (`src/test/server.ts:98-99`), which the client maps to a not-broadcast result naming no neighbours. So a test asserting the chain never reaches three pages forward — `expect(requestedPages()).not.toContain('107')` — passes against *any* implementation, bounded or not, because nothing ever names `107` in the first place.
+**A negative assertion about a page nothing names is vacuous.** Only `100`, `104`, `105`, `200`, `331` and `377` have captured fixtures; every other number answers `status: "fail"` with empty `prevPage`/`nextPage` (`settled` in `src/test/server.ts`), which the client maps to a not-broadcast result naming no neighbours. So a test asserting the chain never reaches three pages forward — `expect(requestedPages()).not.toContain('107')` — passes against *any* implementation, bounded or not, because nothing ever names `107` in the first place.
 
 `takeOffAir` (`src/test/server.ts:19`) is the lever: it makes a non-fixture page answer not-broadcast *with real neighbours*, without hand-writing a fixture, which `CLAUDE.md` forbids because `fixtures/raw_*.json` are captured real responses.
 
@@ -51,7 +51,7 @@ takeOffAir('106', { prev: '105', next: '107' })
 
 With that in place, chaining a third hop turns the guard red — `expected [ '104', '102', '105', '106', '107' ] to not include '107'` — which is the whole point.
 
-**Assert the user-visible payoff too, not only the request set.** A request set says a page was fetched; it does not say the reader sees it. The test that actually pins the feature drags the neighbour sheet out and asserts it is not showing the loading state (`src/app.test.tsx:1405`). That one fails if the prefetch is removed, and it fails for the reason a reader would notice.
+**Assert the user-visible payoff too, not only the request set.** A request set says a page was fetched; it does not say the reader sees it. The test that actually pins the feature drags the neighbour sheet out and asserts it is not showing the loading state (the racing-prefetch test in `src/app.test.tsx`). That one fails if the prefetch is removed, and it fails for the reason a reader would notice.
 
 ## Why This Matters
 

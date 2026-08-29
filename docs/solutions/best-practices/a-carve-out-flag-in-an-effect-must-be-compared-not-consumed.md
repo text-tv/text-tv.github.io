@@ -20,7 +20,7 @@ related_components: [frontend]
 
 The load effect in `src/useTextTv.ts` skips the network when the store says the page was fetched inside the last minute. Two cases must never take that fast path: the session's first load, so a restored page is never left unfetched, and an explicit `reload()`. Each is held open by a ref — `firstLoad` and `fetchedForReload`.
 
-The obvious shape for both is a flag the effect spends: set it once, clear it when the work it forces has run. That shape is wrong here, and the file already carried the scar. `live` (`src/useTextTv.ts:144-151`) guards a prefetch result against landing after the app is gone, and it is re-armed on mount rather than only cleared on unmount, with a comment saying why: a ref left false after the first teardown would silence every prefetch for the rest of the session.
+The obvious shape for both is a flag the effect spends: set it once, clear it when the work it forces has run. That shape is wrong here, and the file already carried the scar. `live` (where `live` is declared in `src/useTextTv.ts`) guards a prefetch result against landing after the app is gone, and it is re-armed on mount rather than only cleared on unmount, with a comment saying why: a ref left false after the first teardown would silence every prefetch for the rest of the session.
 
 `StrictMode` — which `src/main.tsx` wraps the app in — mounts, tears down, and mounts again. The teardown sets the effect's own `cancelled` flag, so the first invocation's fetch resolves into a `.then` that returns without touching state. A flag the first invocation clears is therefore spent by a pass whose result was thrown away, and the second pass — the one that matters — finds the carve-out already fired. A restored page would paint from a stale stored copy with nothing behind it.
 
@@ -54,10 +54,21 @@ const keep =
   firstLoad.current !== pageNumber &&
   reloadCount <= fetchedForReload.current &&
   painted !== undefined &&
-  Date.now() - fetchedAt(pageNumber) < REVALIDATE_AFTER_MS
+  Date.now() - Math.max(fetchedAt(pageNumber), arrived.current[pageNumber] ?? 0) <
+    ARRIVAL_WINDOW_MS
 ```
 
+The last term has since grown a second age record and a renamed window; the two
+comparisons above are the part this doc is about, and they are unchanged. See
+`docs/solutions/best-practices/freshness-must-not-rest-on-a-write-the-store-may-refuse.md`
+for why the freshness half is now a `Math.max`.
+
 **A flag cleared only on the success path leaks when that path can be abandoned.** Anything below an `if (cancelled) return`, inside a `.then` or a `finally`, runs only when the work was not abandoned. If the flag must be retired regardless, retire it somewhere that runs regardless.
+
+The `.then` clear quoted above as the bug is still in the file. It stopped being
+the bug when the page-change retire was added beside it — that one runs
+regardless, so the `.then` line is now belt-and-braces rather than the only
+retire. Read it as surviving history, not as an unfixed defect.
 
 ## Why This Matters
 

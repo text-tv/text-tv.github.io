@@ -18,7 +18,7 @@ related_components: [frontend]
 
 ## Context
 
-SVT leaves column 0 blank on every page. That makes it the obvious place to put anything the app wants to add to a row without costing a character — a changed-row mark, a marker, an indicator — and the design for the refresh feature says exactly that: the mark "costs no character cell and never sits on top of text" (`misc/design/README.md`).
+SVT leaves column 0 blank on every page. That makes it the obvious place to put anything the app wants to add to a row without costing a character — a changed-row mark, a marker, an indicator — and the plan for the refresh feature says exactly that: the mark "costs no character and never sits on top of text" (`docs/plans/2026-08-26-1826-feat-refresh-a-page-plan.md`).
 
 The reasoning is right about the page and wrong about the renderer. A blank column is blank *in the broadcast*; it is not absent from the DOM. `RowBuilder.space()` in `src/teletext/resolve.ts` emits a leading run of spaces, and that run carries the cell's background as a real, opaque colour, which `TextFrame` renders as a `backgroundColor` on an absolutely-positioned box. Column 0 arrives at the browser as a painted rectangle like any other.
 

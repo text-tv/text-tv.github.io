@@ -23,7 +23,7 @@ Freshness in `src/useTextTv.ts` is two-tier. `ARRIVAL_WINDOW_MS` (an hour,
 `src/useTextTv.ts:30`) is how old a copy already in hand may be and still be shown
 on arrival without a fetch behind it; the load effect's `keep` test applies it to
 `Math.max(fetchedAt(pageNumber), arrived.current[pageNumber] ?? 0)`
-(`src/useTextTv.ts:313-316`). `arrived` records when *this session's* payloads
+(the `keep` test in `src/useTextTv.ts`). `arrived` records when *this session's* payloads
 landed. `fetchedAt` is the `localStorage` index, and `localStorage` outlives the
 session.
 
@@ -71,7 +71,7 @@ single clean `Uppdaterad HH:MM` → `Uppdaterad HH:MM` transition.
 **Why all of it came back clean.** Every test — the whole suite and the scratch
 chain alike — prefetched its neighbours *in the same session, seconds earlier*.
 `writePage` stamps the index then, and `arrived.current[target]` is stamped in the
-same handler (`src/useTextTv.ts:408`), so the copies were minutes-fresh by both
+same handler (the same handler in `src/useTextTv.ts`), so the copies were minutes-fresh by both
 records. The store branch of `prefetch` — the one that reads what an *earlier*
 session left behind — was never entered. The bug needs a session boundary plus
 real elapsed time, and no test had either.
@@ -106,7 +106,7 @@ if (cached) {
 }
 ```
 
-After (`src/useTextTv.ts:390-398`):
+After (`src/useTextTv.ts`):
 
 ```ts
 const cached = readPage(target)
@@ -157,7 +157,7 @@ arrival's expression here would close it.
   branch. The shape that does: mount, let the page settle, **unmount** (the
   session ends), advance the clock past the window, remount, wait for the prefetch
   to request the neighbour, then swipe. That is
-  `src/app.test.tsx:1868`, "friskar upp grannen från en tidigare session innan man
+  "friskar upp grannen från en tidigare session innan man
   sveper dit", which asserts both no request for the page after the swipe and no
   "Cachad · uppdaterar…" on arrival. Without the fix it fails at the prefetch
   itself — `expected [ '104', '102', '106' ] to include '105'`.
@@ -172,6 +172,6 @@ arrival's expression here would close it.
 
 ## Related Issues
 
-- [Freshness must not rest on a write the store is allowed to refuse](freshness-must-not-rest-on-a-write-the-store-may-refuse.md) — the other half of the same split: that one is about a copy the app cannot *tell* is fresh, this one about a copy it can tell is old. Its Solution snippet predates `ARRIVAL_WINDOW_MS` and its line references have drifted.
+- [Freshness must not rest on a write the store is allowed to refuse](freshness-must-not-rest-on-a-write-the-store-may-refuse.md) — the other half of the same split: that one is about a copy the app cannot *tell* is fresh, this one about a copy it can tell is old.
 - [A request log is not a payload log](a-request-log-is-not-a-payload-log.md) — why the regression test asserts the user-visible string as well as the request set.
 - Still open: committing a swipe onto a page whose prefetch is in flight fetches it a second time, because the load effect consults `known`, the store and `arrived`, but never `prefetching`.

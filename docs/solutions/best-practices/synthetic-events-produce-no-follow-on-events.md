@@ -18,7 +18,7 @@ related_components: [frontend]
 
 ## Context
 
-Tests here run at the app level under Vitest with `happy-dom` (`vite.config.ts:50`) and the network faked with msw. The swipe gesture listens for raw pointer events on the frame container, and a committed swipe arms a capture-phase `click` listener on `document` to swallow the compatibility click the browser would otherwise deliver on whatever the finger lifted over (`src/useSwipeNavigation.ts:57`). Without that swallow, a swipe ending over a printed teletext link also follows the link.
+Tests here run at the app level under Vitest with `happy-dom` (`vite.config.ts:50`) and the network faked with msw. The swipe gesture listens for raw pointer events on the frame container, and a committed swipe arms a capture-phase `click` listener on `document` to swallow the compatibility click the browser would otherwise deliver on whatever the finger lifted over (`armSwallow` in `src/useSwipeNavigation.ts`). Without that swallow, a swipe ending over a printed teletext link also follows the link.
 
 The test for it dispatched `pointerdown`, `pointermove`, `pointerup` and asserted the destination page. It passed. It also passed with the swallow deleted, because no `click` was ever in flight: happy-dom synthesises nothing from a pointer sequence, and a real browser derives its compatibility click from *touch* events, not from script-dispatched pointer events. The guard was never reached, in either direction.
 
@@ -26,7 +26,7 @@ Two reviewers in the same review pass flagged it independently of each other. De
 
 ## Guidance
 
-**Dispatch every event in the chain the behaviour spans.** The fix was one line — reuse the file's existing `tapAt` helper (`src/app.test.tsx:63`) to fire the click the browser would have fired:
+**Dispatch every event in the chain the behaviour spans.** The fix was one line — reuse the file's existing `tapAt` helper (`tapAt` in `src/app.test.tsx`) to fire the click the browser would have fired:
 
 ```ts
 swipeFrom(container(), 340, 152, 240, 152)
@@ -44,7 +44,7 @@ That test is now load-bearing: moving the swallow's listener from `document` to 
 - `change` after `input` on a form control
 - `pointercancel` when the browser or OS claims a gesture
 
-`@testing-library/user-event` composes these chains for the interactions it covers, which is why the neighbouring test that drives a real button (`src/app.test.tsx:618`) needs no such care. Hand-dispatched events get nothing.
+`@testing-library/user-event` composes these chains for the interactions it covers, which is why the neighbouring test that drives a real button (the `userEvent.click` counterweight test in `src/app.test.tsx`) needs no such care. Hand-dispatched events get nothing.
 
 ## Why This Matters
 
@@ -52,7 +52,7 @@ The test looked like a test of the swallow. It named the swallow, sat beside it,
 
 This is not an isolated happy-dom gap but a family of them, and the repo has hit it repeatedly (session history):
 
-- **No layout.** Every element returns a zero-size rect, so anything gated on geometry — hit-testing, sizing, positions — silently no-ops. A hotspot hit-resolution test was vacuous for exactly this reason, and a separate double-height CSS bug could not be caught by any test at all.
+- **No layout**, and no stylesheet either. Every element returns a zero-size rect and computed style comes back empty, so anything gated on geometry — hit-testing, sizing, positions — silently no-ops. A hotspot hit-resolution test was vacuous for exactly this reason, and a separate double-height CSS bug could not be caught by any test at all. Written up in full in `docs/solutions/best-practices/the-suite-never-loads-the-stylesheet-so-a-green-run-is-silent-about-layout.md`.
 - **Proxy-backed `localStorage`.** Spying on the instance and on `Storage.prototype` both fail, because the proxy intercepts first. A quota-eviction test passed against a deliberately broken unbounded-eviction mutation until the whole storage object was replaced on `window`.
 - **No event synthesis**, which is this doc.
 
@@ -64,7 +64,7 @@ Whenever a test drives behaviour by hand-dispatching DOM events and the behaviou
 
 It does not apply where a library composes the chain for you — `userEvent.click` fires the pointer, mouse, focus and click events a real click carries.
 
-Where the missing capability is layout or geometry rather than events, dispatching more events will not help: that needs a real headless browser, which is how the geometry claims in this repo have been checked before.
+Where the missing capability is layout or geometry rather than events, dispatching more events will not help: that needs a real headless browser, which is how the geometry claims in this repo have been checked before. `docs/solutions/best-practices/the-suite-never-loads-the-stylesheet-so-a-green-run-is-silent-about-layout.md` covers that case and how to run one here.
 
 ## Examples
 
@@ -75,6 +75,6 @@ swipeFrom(container(), 340, 152, 240, 152)
 await currentPage('101')
 ```
 
-`swipeFrom` (`src/app.test.tsx:414`) dispatches exactly three `PointerEvent`s and stops. Its own comment now says so: *happy-dom synthesises nothing from a pointer sequence, so every event the gesture needs is spelled out here.*
+`swipeFrom` (`swipeFrom` in `src/app.test.tsx`) dispatches exactly three `PointerEvent`s and stops. Its own comment now says so: *happy-dom synthesises nothing from a pointer sequence, so every event the gesture needs is spelled out here.*
 
-The negative case in the same block is the counterweight and needed no repair — it asserts the swallow lets go of a click *outside* the frame, and drives that click through `userEvent.click`, which supplies the whole chain (`src/app.test.tsx:618`).
+The negative case in the same block is the counterweight and needed no repair — it asserts the swallow lets go of a click *outside* the frame, and drives that click through `userEvent.click`, which supplies the whole chain (the `userEvent.click` counterweight test in `src/app.test.tsx`).

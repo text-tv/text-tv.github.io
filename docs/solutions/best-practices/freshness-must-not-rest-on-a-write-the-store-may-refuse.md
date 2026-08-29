@@ -23,7 +23,7 @@ Navigating to a page skips the network when the app already has a copy new enoug
 That was the only record of when a page arrived, and the store is allowed not to keep it. Two ways:
 
 - **Quota.** A prefetch writes in `prefetch` mode, which refuses to evict a page the reader actually visited and gives up instead (`src/pageStore.ts:106`). Nothing is stored, so nothing is indexed. Teletext frames are base64 GIFs, so a stored page is large: the captured fixtures run 12–16 KB for a single sub-page and 172 KB for the fourteen-sub-page one. A phone read on for a few days sits at quota routinely.
-- **No storage at all.** `storage()` returns `undefined` when `localStorage` throws (`src/pageStore.ts:33-41`), and `fetchedAt` then answers `0` for every page, forever.
+- **No storage at all.** `storage()` returns `undefined` when `localStorage` throws (`storage()` in `src/pageStore.ts`), and `fetchedAt` then answers `0` for every page, forever.
 
 In both cases the payload is still in memory, already painted on screen. The app just had no record saying so, so it refetched — on every landing, defeating the prefetch entirely in exactly the conditions the prefetch was for.
 
@@ -50,7 +50,7 @@ Date.now() - Math.max(fetchedAt(pageNumber), arrived.current[pageNumber] ?? 0) <
   ARRIVAL_WINDOW_MS
 ```
 
-`arrived` is written wherever a payload enters memory — the ordinary load (`src/useTextTv.ts:341`) and the prefetch (`:408`) — beside the store write rather than depending on it (`src/useTextTv.ts:164-170`). The window it is compared against was a single `REVALIDATE_AFTER_MS` when this was written; it has since split in two, and arriving on a page is now governed by `ARRIVAL_WINDOW_MS` (`src/useTextTv.ts:30`).
+`arrived` is written wherever a payload enters memory — the ordinary load and the prefetch, both in `src/useTextTv.ts` — beside the store write rather than depending on it (`src/useTextTv.ts:164-170`). The window it is compared against was a single `REVALIDATE_AFTER_MS` when this was written; it has since split in two, and arriving on a page is now governed by `ARRIVAL_WINDOW_MS` (`src/useTextTv.ts:30`).
 
 `Math.max` is what makes it safe in both directions. The store's record still counts, so a copy restored from storage across a session is dated correctly. The memory record still counts, so a page the store refused is not treated as unfetched. A page genuinely older than the window revalidates either way.
 
