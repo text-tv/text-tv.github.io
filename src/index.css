@@ -6,8 +6,8 @@
  * relative so it survives a project-path base.
  */
 @font-face {
-  font-family: 'Inconsolata';
-  src: url('../inconsolata.woff2') format('woff2-variations');
+  font-family: "Inconsolata";
+  src: url("../inconsolata.woff2") format("woff2-variations");
   font-weight: 400;
   font-stretch: 50% 200%;
   font-display: swap;
@@ -100,7 +100,10 @@ body {
   height: 100%;
   background: #000;
   color: var(--ink);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   overscroll-behavior: none;
   overflow: hidden;
 }
@@ -252,7 +255,7 @@ body {
 
 /* The frames' own face and palette: the strip is teletext, not app chrome. */
 .pull-strip__label {
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-stretch: 150%;
   font-size: 13px;
   letter-spacing: 0.16em;
@@ -380,7 +383,7 @@ body {
   container-type: inline-size;
   overflow: hidden;
   background: #000;
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   /*
    * Type is set larger than the cell and narrowed by the same factor, so it
    * grows taller without growing wider: the wdth axis takes back on the width
@@ -483,8 +486,10 @@ body {
 /* R6: a glyph the table does not know falls back to its own slice of the GIF. */
 .text-frame__slice {
   background-repeat: no-repeat;
-  background-size: calc(var(--cols) * var(--cell-w)) calc(var(--rows) * var(--cell-h));
-  background-position: calc(var(--col) * var(--cell-w) * -1) calc(var(--row) * var(--cell-h) * -1);
+  background-size: calc(var(--cols) * var(--cell-w))
+    calc(var(--rows) * var(--cell-h));
+  background-position: calc(var(--col) * var(--cell-w) * -1)
+    calc(var(--row) * var(--cell-h) * -1);
   image-rendering: pixelated;
 }
 
@@ -593,7 +598,7 @@ body {
   /* Keeps a tabbed-to item off the edge when the browser scrolls it into view. */
   scroll-padding-inline: 12px;
   scrollbar-width: none;
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-stretch: 150%;
 }
 
@@ -644,8 +649,8 @@ body {
 }
 
 /* You are here: drop out of the palette rather than add a marker. */
-.rail__item[aria-current='page'] .rail__num,
-.rail__item[aria-current='page'] .rail__name {
+.rail__item[aria-current="page"] .rail__num,
+.rail__item[aria-current="page"] .rail__name {
   color: #fff;
 }
 
@@ -737,7 +742,7 @@ body {
  * would be a mosaic, and these are chrome rather than page content.
  */
 .bar {
-  font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Inconsolata", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-stretch: 150%;
   display: flex;
   justify-content: center;
@@ -835,7 +840,7 @@ body {
 
 .bar__glyph--home::before,
 .bar__glyph--home::after {
-  content: '';
+  content: "";
   position: absolute;
 }
 
@@ -859,19 +864,19 @@ body {
 
 /* Unavailable either way: no such neighbour, or none named yet. */
 .bar__arrow:disabled,
-.bar__arrow[aria-disabled='true'],
+.bar__arrow[aria-disabled="true"],
 .bar__button:disabled,
-.bar__button[aria-disabled='true'] {
+.bar__button[aria-disabled="true"] {
   color: #3a3a3a;
 }
 
 .bar__arrow:disabled .bar__glyph--prev,
-.bar__arrow[aria-disabled='true'] .bar__glyph--prev {
+.bar__arrow[aria-disabled="true"] .bar__glyph--prev {
   border-right-color: #3a3a3a;
 }
 
 .bar__arrow:disabled .bar__glyph--next,
-.bar__arrow[aria-disabled='true'] .bar__glyph--next {
+.bar__arrow[aria-disabled="true"] .bar__glyph--next {
   border-left-color: #3a3a3a;
 }
 
@@ -943,3 +948,25 @@ body {
   color: var(--dim);
 }
 
+/*
+ * The `?diag` readout. Temporary scaffolding - see `Diagnostics.tsx`, and take
+ * this block with it. Centred because the shell it reports on may be drawn off
+ * the top of the screen, which is the bug it exists for.
+ */
+.diagnostics {
+  position: fixed;
+  top: 35%;
+  left: 8px;
+  right: 8px;
+  z-index: 9;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #00ff00;
+  background: rgba(0, 0, 0, 0.85);
+  color: #00ff00;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
