@@ -908,6 +908,13 @@ body {
 .bar__page-field:focus {
   color: #ffff00;
   border-bottom-color: #ffff00;
+  /*
+   * The yellow digits and the yellow rule are the focus indicator, and they
+   * are a stronger one than the browser's ring: two properties change at once,
+   * at full contrast against black. The ring itself has to go because it draws
+   * a box on all four sides of a field the design gives only an underline.
+   */
+  outline: none;
 }
 
 /*
