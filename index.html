@@ -3,10 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <title>Text-TV</title>
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+
+    <!--
+      viewport-fit=cover, but only for an installed copy.
+
+      Cover asks the browser to lay the page out edge to edge, under the system
+      bars, and to hand the page the safe-area insets to keep its own content
+      clear. In an installed app that is what we want and the insets are real.
+      In a tab it is not: iOS Chrome makes the page the full height of the
+      screen, shows it in the shorter slot between its own toolbars, hands back
+      insets of 0px - and after a reload rests that page at the bottom of its
+      travel rather than the top. The shell is then drawn a status bar and an
+      address bar too high, with its own black below the bottom bar, and no
+      measurement the page can take says so.
+
+      Inline and in the head, so it is decided before the first layout; a meta
+      rewritten later does not move iOS.
+    -->
+    <script>
+      if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+        const viewport = document.querySelector('meta[name="viewport"]')
+        viewport.content += ', viewport-fit=cover'
+      }
+    </script>
     <meta name="description" content="SVT Text med länkar som fungerar på pekskärm." />
 
     <!-- Black throughout, so launching in a dark room does not dazzle. -->
