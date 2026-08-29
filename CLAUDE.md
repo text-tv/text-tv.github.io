@@ -66,3 +66,8 @@ Production has no `VITE_SVT_API_BASE` override, so it uses the real endpoint.
   in a documented area.
 - `CONCEPTS.md` — shared domain vocabulary, relevant when orienting to the
   codebase or discussing domain concepts.
+- `CLAUDE.local.md` — user- or machine-specific instructions, if the file
+  exists. Gitignored, and whoever works in a checkout decides what goes in
+  theirs; read it when it is there.
+
+@CLAUDE.local.md
