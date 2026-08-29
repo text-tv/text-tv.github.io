@@ -2320,6 +2320,7 @@ describe('det synliga området', () => {
   }
 
   const heightProperty = () => document.documentElement.style.getPropertyValue('--viewport-height')
+  const offsetProperty = () => document.documentElement.style.getPropertyValue('--viewport-offset')
 
   afterEach(() => {
     Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
@@ -2374,6 +2375,34 @@ describe('det synliga området', () => {
     viewport.height = 800
     viewport.dispatchEvent(new Event('resize'))
     await waitFor(() => expect(heightProperty()).toBe('800px'))
+  })
+
+  /*
+   * The refresh bug: a reload mounts while Chrome's URL bar is still sliding,
+   * and the region it settles on is announced by no event at all.
+   */
+  it('läser om medan webbläsarens fält fortfarande glider', async () => {
+    const viewport = useViewportStub(300)
+    openOn('100')
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+
+    Object.assign(viewport, { height: 700, offsetTop: 40 })
+
+    await waitFor(() => expect(offsetProperty()).toBe('40px'))
+    expect(heightProperty()).toBe('700px')
+  })
+
+  it('läser om när sidan tas fram ur bakåtcachen', async () => {
+    const viewport = useViewportStub(300)
+    openOn('100')
+    await waitFor(() => expect(heightProperty()).toBe('300px'))
+    // Past the settle window, so only the pageshow can explain what follows.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    viewport.height = 700
+    window.dispatchEvent(new Event('pageshow'))
+
+    await waitFor(() => expect(heightProperty()).toBe('700px'))
   })
 
   it('fungerar i en webbläsare utan visualViewport', async () => {
