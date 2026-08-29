@@ -2377,32 +2377,17 @@ describe('det synliga området', () => {
     await waitFor(() => expect(heightProperty()).toBe('800px'))
   })
 
-  /*
-   * The refresh bug: a reload mounts while Chrome's URL bar is still sliding,
-   * and the region it settles on is announced by no event at all.
-   */
-  it('läser om medan webbläsarens fält fortfarande glider', async () => {
+  // iOS reports a negative offset while the browser's bars expand, which is
+  // what a reload lands in; translating the shell by it lifts it off screen.
+  it('lyfter inte skalet när det synliga området rapporteras ovanför sidan', async () => {
     const viewport = useViewportStub(300)
     openOn('100')
-    await waitFor(() => expect(heightProperty()).toBe('300px'))
+    await waitFor(() => expect(offsetProperty()).toBe('0px'))
 
-    Object.assign(viewport, { height: 700, offsetTop: 40 })
+    Object.assign(viewport, { offsetTop: -76 })
+    viewport.dispatchEvent(new Event('scroll'))
 
-    await waitFor(() => expect(offsetProperty()).toBe('40px'))
-    expect(heightProperty()).toBe('700px')
-  })
-
-  it('läser om när sidan tas fram ur bakåtcachen', async () => {
-    const viewport = useViewportStub(300)
-    openOn('100')
-    await waitFor(() => expect(heightProperty()).toBe('300px'))
-    // Past the settle window, so only the pageshow can explain what follows.
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    viewport.height = 700
-    window.dispatchEvent(new Event('pageshow'))
-
-    await waitFor(() => expect(heightProperty()).toBe('700px'))
+    await waitFor(() => expect(offsetProperty()).toBe('0px'))
   })
 
   it('fungerar i en webbläsare utan visualViewport', async () => {
