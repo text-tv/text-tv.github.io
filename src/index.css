@@ -973,6 +973,14 @@ body {
   color: var(--dim);
 }
 
+/*
+ * `?tall`: a document taller than the slot, from the first paint. Temporary,
+ * with the rest of the scaffolding - see the comment in index.html.
+ */
+.tall-probe body {
+  min-height: calc(100svh + 240px);
+}
+
 /* The one shell the `?diag` buttons still swap to. Temporary, with the rest. */
 .diag-dvh .app {
   height: 100dvh;

@@ -21,7 +21,20 @@
       Inline and in the head, so it is decided before the first layout; a meta
       rewritten later does not move iOS.
     -->
+    <!--
+      `?tall` gives the document a real scroll range from the first paint.
+
+      Temporary, with the rest of the `?diag` scaffolding. Every other page
+      that does not show this bug - txtv.nu among them - is an ordinary
+      scrollable page, where the browser's toolbar machinery runs as designed.
+      Ours has been exactly one viewport tall since the shell went into flow,
+      and a range added later did nothing; this asks whether a range present
+      when the page loads is what the browser needs.
+    -->
     <script>
+      if (window.location.search.indexOf('tall') !== -1) {
+        document.documentElement.classList.add('tall-probe')
+      }
       if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
         const viewport = document.querySelector('meta[name="viewport"]')
         viewport.content += ', viewport-fit=cover'
