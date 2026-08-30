@@ -84,31 +84,50 @@ gone full-screen-plus-insets rather than merely mis-sizing something.
 
 `src/viewportReset.ts`, called from `src/main.tsx:14` before the first render.
 
-Detection needs both halves (`displaced`, `src/viewportReset.ts:61-62`): the
-viewport within two pixels of `screen.height`, **and** a `100svh` probe more
-than `SLOT_MARGIN_PX` (50, line 41) shorter than that viewport. Either alone is
-an ordinary phone — a full-screen viewport is what you get once the toolbars
+The bug has two faces, and only one of them can be measured.
+
+**The measured one.** `displaced` (`src/viewportReset.ts:61-62`) needs both
+halves: the viewport within two pixels of `screen.height`, **and** a `100svh`
+probe more than `SLOT_MARGIN_PX` (50) shorter than that viewport. Either alone
+is an ordinary phone — a full-screen viewport is what you get once the toolbars
 have scrolled away, and a short slot on its own says only that they are on
-their way out. The slot has to be read off a hidden probe box
-(`slotHeight`, lines 84-91) because no property reports it.
+their way out. The slot has to be read off a hidden probe box (`slotHeight`)
+because no property reports it.
 
-The correction (`renavigate`, lines 129-134) is `location.replace` of the same
-URL with a marker query parameter, `omritad`. The parameter forces a document
-fetch rather than a replay of the entry, which is what makes Chrome run its
-reset; `replace` rather than `assign` keeps Back where the reader expects it;
-and `dropMarker` (lines 137-142) strips it with `replaceState` once the new
-document is running.
+**The unmeasurable one.** The same displacement also happens with the viewport
+reading the slot height correctly — `innerHeight` 676, `100svh` 676, every rect
+agreeing — and the page drawn a toolbar's height too high regardless. Nothing
+in the page distinguishes that load from a healthy one, so the trigger is the
+circumstance rather than a number: Chrome for iOS (`CriOS` in the user agent),
+coming out of a reload (`performance.getEntriesByType('navigation')[0].type`),
+which is exactly the case Chrome's own reset skips. It is a blunt instrument —
+it fires on every reload in that browser, healthy or not — and it is kept off
+every other browser, where it would only cost a fetch for a bug they do not
+have.
 
-`sessionStorage` caps this at two attempts (`MAX_ATTEMPTS`, line 31) and the
-counter is cleared on any load that comes up right (line 173). Every storage
-access is wrapped in `try`/`catch` (lines 99-121) — this runs before the first
-render, and a browser that blocks storage must not be handed a blank page; a
-session that cannot count gets exactly one attempt. An installed copy returns
-`settle` immediately (line 76), since it has no browser toolbars.
+Either trigger takes the same correction (`renavigate`): `location.replace` of
+the same URL with a marker query parameter, `omritad`. The parameter forces a
+document fetch rather than a replay of the entry, which is what makes Chrome
+run its reset; `replace` rather than `assign` keeps Back where the reader
+expects it; and `dropMarker` strips it with `replaceState` once the new
+document is running. A load that arrives carrying the marker is the correction
+itself, so it clears the marker and stops rather than starting again.
 
-The resize that does the damage lands a frame or two after load, so
-`resetChromeViewport` looks once and then watches `resize` for `WATCH_MS`
-(3000, line 34) in case it has not happened yet.
+`sessionStorage` caps this at two attempts (`MAX_ATTEMPTS`) and the counter is
+cleared on any load that comes up right. Every storage access is wrapped in
+`try`/`catch` — this runs before the first render, and a browser that blocks
+storage must not be handed a blank page; a session that cannot count gets
+exactly one attempt. An installed copy returns `settle` immediately, since it
+has no browser toolbars.
+
+The resize that produces the measurable face lands a frame or two after load,
+so `resetChromeViewport` looks once and then watches `resize` for `WATCH_MS`
+(3000) in case it has not happened yet.
+
+`?nofix` in the query stands the whole thing down for one load. The correction
+hides the bug rather than ending it, and a hidden bug cannot be looked at —
+this is how to see the browser's own behaviour again, and how to find out
+whether the workaround still earns its place.
 
 ## Why This Works
 
@@ -120,13 +139,21 @@ document-changing navigation, because that is the exact condition
 lock/unlock achieve by other routes, and the only one of the three a page can
 perform for itself.
 
-The two-part detection is what keeps this from firing on healthy phones. `100svh`
-is defined as the toolbars-shown height, so it keeps reporting the slot even
-while Chrome has handed the page the whole screen; that disagreement between
-two numbers with different provenance is the only signature the bug has. The
-unit tests pin both halves as load-bearing (`src/viewportReset.test.ts`),
-including the two near-misses: full screen with a full-screen slot, and a short
-slot inside a short viewport.
+The two-part measurement is what keeps the first trigger from firing on healthy
+phones. `100svh` is defined as the toolbars-shown height, so it keeps reporting
+the slot even while Chrome has handed the page the whole screen; that
+disagreement between two numbers with different provenance is the only
+signature that face of the bug has. The unit tests pin both halves as
+load-bearing (`src/viewportReset.test.ts`), including the two near-misses: full
+screen with a full-screen slot, and a short slot inside a short viewport.
+
+The second trigger exists because that signature is not always present, which
+cost a round of believing the bug was fixed when only half of it was. A
+correction shipped against the measured face alone looked like a complete fix
+for as long as the measured face was what turned up. Where a bug leaves nothing
+to measure, the honest trigger is the circumstance it needs — here, a browser
+and a navigation type — and the price of a blunt trigger is paid in one extra
+fetch on loads that were fine.
 
 ## Prevention
 
@@ -160,6 +187,12 @@ turned "rotation fixes it" from a curiosity into a fix.
 **A workaround that renavigates must be capped and self-clearing.** Two
 attempts, a counter cleared on any healthy load, and storage failures that
 degrade to one attempt rather than to a blank page.
+
+**A workaround for a state you cannot see needs a way to turn it off.** The
+correction makes the bug invisible rather than absent, so without `?nofix`
+there is no way to ask whether the browser still behaves this way, or whether
+the workaround has become dead weight. One test proving a fix works proves it
+against the face of the bug that happened to turn up that day.
 
 ## Related Issues
 

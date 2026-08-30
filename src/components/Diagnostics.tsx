@@ -69,6 +69,9 @@ const read = (probe: HTMLElement): string[] => {
     // The two the workaround decides on, and what it has done about them.
     `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}${new URLSearchParams(window.location.search).has('nofix') ? ' NOFIX' : ''}`,
     `rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1} tangentbord ${document.documentElement.dataset.keyboard === undefined ? 'nej' : 'ja'}`,
+    // What the workaround's blunt trigger reads: the browser, and how this
+    // document was arrived at.
+    `nav ${(performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type ?? '-'} ${/CriOS/.test(navigator.userAgent) ? 'crios' : 'annan'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
     // shell's own top stays at zero.

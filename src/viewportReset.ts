@@ -69,15 +69,47 @@ export type Verdict = 'renavigate' | 'settle' | 'give-up'
 
 export function decide(state: {
   standalone: boolean
+  /** Chrome for iOS, the only browser known to need this. */
+  affected: boolean
+  /** The document was reloaded rather than navigated to. */
+  reloaded: boolean
   measurements: Measurements
   attempts: number
 }): Verdict {
   // An installed copy has no browser toolbars and cannot be in this state.
   if (state.standalone) return 'settle'
-  if (!displaced(state.measurements)) return 'settle'
+
+  /*
+   * Two ways in. The measured one catches the version of this where the page
+   * is told it has the whole screen, which is visible in the numbers. The
+   * blunt one catches the version where every number reads correctly and the
+   * page is displaced anyway - there is nothing to measure there, so the
+   * trigger is the circumstance instead: Chrome for iOS, coming out of a
+   * reload, which is the only case Chrome's own reset skips.
+   */
+  const wrong = displaced(state.measurements) || (state.affected && state.reloaded)
+  if (!wrong) return 'settle'
+
   // Two tries, then live with it: a device this does not help must not spend
   // the session reloading.
   return state.attempts < MAX_ATTEMPTS ? 'renavigate' : 'give-up'
+}
+
+/**
+ * Chrome for iOS, which puts `CriOS` in its user agent. Safari and every other
+ * iOS browser leave it out, and none of them has this bug - so the blunt
+ * trigger above is kept off browsers that would only pay for it.
+ */
+const affectedBrowser = (): boolean => /CriOS/.test(window.navigator.userAgent)
+
+/**
+ * Whether this document came from a reload rather than an ordinary
+ * navigation. Only a reload replays a history entry, and only a replayed
+ * same-document entry skips the reset that leaves the view mis-sized.
+ */
+const reloaded = (): boolean => {
+  const [entry] = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[]
+  return entry?.type === 'reload' || entry?.type === 'back_forward'
 }
 
 /** `100svh` in pixels, which no property reports and only a box can answer. */
@@ -159,10 +191,19 @@ const standDownAsked = () => new URLSearchParams(window.location.search).has('no
 
 export function resetChromeViewport(): void {
   if (!window.screen || standDownAsked()) return
+  // This load is the correction. Whatever it looks like, it was already
+  // fetched as a document, so there is nothing left to force.
+  if (new URL(window.location.href).searchParams.has(MARKER)) {
+    dropMarker()
+    forgetAttempts()
+    return
+  }
 
   const look = () => {
     const verdict = decide({
       standalone: installed(),
+      affected: affectedBrowser(),
+      reloaded: reloaded(),
       measurements: {
         viewport: window.innerHeight,
         screen: window.screen.height,
