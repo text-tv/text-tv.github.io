@@ -80,17 +80,17 @@
   --dim: #8a8a8a;
   --link: rgba(255, 255, 255, 0.55);
   /*
-   * The visible slot, in the smallest form the browser can show it in.
+   * The slot: the part of the screen the browser actually shows the page in,
+   * once its own toolbars are accounted for.
    *
    * svh, deliberately, and not dvh: dvh is whatever is visible *now*, which on
-   * a phone grows to the toolbars-collapsed height. Sizing the shell to that
-   * makes the document taller than the slot the browser is showing, and iOS
-   * declines to honour `overflow: hidden` while its chrome is collapsed -
-   * scrolling is how the chrome comes back - so the page keeps a native scroll
-   * offset of a toolbar's height that no measurement in the page can see. A
-   * reload replays it and the whole shell is drawn that much too high. svh is
-   * the toolbars-shown height, so there is no travel to be left at the wrong
-   * end of. JavaScript overwrites this only while the keyboard is up.
+   * a phone grows to the toolbars-collapsed height, and 100% resolves against
+   * that same larger viewport. Sizing the shell to either makes the document
+   * taller than what is on screen and hands the page a scroll range it has no
+   * use for. svh is the toolbars-shown height, so the shell is exactly what
+   * the reader can see. JavaScript overwrites this only while the keyboard is
+   * up - see `src/viewportReset.ts` for the one browser that mis-sizes the
+   * view itself, which no unit can defend against.
    */
   --viewport-height: 100vh;
   color-scheme: dark only;
@@ -107,12 +107,17 @@
 }
 
 /*
- * No height and no overflow of their own. Both used to be set - 100% and
- * hidden - and together they were the bug above: 100% resolves against the
- * larger toolbars-collapsed viewport, which made the document taller than the
- * slot, and hidden is the rule iOS ignores in exactly that state. The shell
- * below is a plain flow box one slot tall, so the document is too, and there
- * is nothing to scroll whether or not anyone honours a rule about it.
+ * No height of their own: the shell below is one slot tall and the document
+ * is whatever the shell is. `height: 100%` was the old arrangement and
+ * resolves against the toolbars-collapsed viewport, which is taller than the
+ * slot and leaves the page a scroll range it has no use for.
+ *
+ * `clip` rather than `hidden` for the same reason. Both hide the overflow, but
+ * `hidden` makes the box a scroll container - one a browser can scroll even
+ * when the reader cannot - where `clip` does not. Nothing should overflow a
+ * shell built from declared band heights, and if a very short window ever
+ * makes it, this is the difference between a clipped pixel and a scrollable
+ * document.
  */
 html,
 body {
@@ -122,12 +127,13 @@ body {
   color: var(--ink);
   font-family: system-ui, -apple-system, sans-serif;
   overscroll-behavior: none;
+  overflow: clip;
 }
 
 /*
- * One slot tall, and in the document rather than pinned over it. The shell is
- * the whole of the page's height, so the page cannot scroll and no browser has
- * a scroll position of its own to put back.
+ * One slot tall, and in the document rather than pinned over it: the page is
+ * exactly as tall as what is on screen, which is the simplest thing a phone
+ * can be handed.
  */
 .app {
   height: var(--viewport-height);
@@ -1010,7 +1016,7 @@ body {
   white-space: pre-wrap;
 }
 
-.diagnostics__remedies {
+.diagnostics__buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -1037,7 +1043,7 @@ body {
   overscroll-behavior: contain;
 }
 
-.diagnostics__remedy {
+.diagnostics__button {
   flex: 1 0 40%;
   min-height: 34px;
   padding: 0;

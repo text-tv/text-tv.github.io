@@ -2,17 +2,18 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { format, log, record, subscribe } from '../log'
 
 /**
- * Temporary scaffolding for a bug that only shows on a phone: the numbers the
- * shell is laid out from, painted over the page, and a row of buttons that
- * each try one remedy on the spot. Reached with `?diag` in the query -
- * `?diag#300` - so a reader never meets it by accident.
+ * The app's console, for the machine that has none.
  *
- * The buttons are the point. Every measurement the page can take says the
- * shell is where it asked to be, so the question is no longer what is wrong
- * but what puts it right: whichever button fixes the picture names the cause.
+ * Reached with `?diag` in the query - `?diag#300` - so a reader never meets it
+ * by accident. It paints the build it is running, the viewport the browser has
+ * given the page and where the shell sits inside it, with everything
+ * measurable behind MER and the log behind LOGG.
  *
- * Delete this file, its CSS block and its two lines in App once the shell is
- * trusted on iOS.
+ * It is kept because the bugs worth chasing here only happen on a phone, and
+ * because a snapshot of an already-broken page is no use: every number in one
+ * agrees with every other. What is worth having is the sequence, which is why
+ * the log takes a reading at intervals after boot and on every event that
+ * could move the page. `src/viewportReset.ts` is the bug that proved it.
  */
 /** The commit this bundle was built from; see the define in vite.config.ts. */
 declare const __BUILD__: string
@@ -34,7 +35,17 @@ const insetProbe = () => {
 
 const round = (value: number) => Math.round(value * 10) / 10
 
-/** The page's own viewport declaration, which the remedies below rewrite. */
+/** What `100svh` resolves to: the slot, which no property reports. */
+const slot = (): number => {
+  const probe = document.createElement('div')
+  probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden'
+  document.body.append(probe)
+  const height = probe.getBoundingClientRect().height
+  probe.remove()
+  return height
+}
+
+/** The page's own viewport declaration, as the browser was given it. */
 const viewportMeta = () => document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null
 
 const read = (probe: HTMLElement): string[] => {
@@ -55,7 +66,9 @@ const read = (probe: HTMLElement): string[] => {
     `safe t ${inset.paddingTop} b ${inset.paddingBottom} screenY ${round(window.screenY)}`,
     `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
     `meta ${viewportMeta()?.content ?? '-'}`,
-    `skal ${document.documentElement.className || 'av'} rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1}`,
+    // The two the workaround decides on, and what it has done about them.
+    `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}`,
+    `rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1} tangentbord ${document.documentElement.dataset.keyboard === undefined ? 'nej' : 'ja'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
     // shell's own top stays at zero.
@@ -64,11 +77,6 @@ const read = (probe: HTMLElement): string[] => {
   ]
 }
 
-/**
- * One candidate cause each, as something the reader can tap. Whichever one
- * puts the page right is the answer; if none does, the shell is not what is
- * displaced and the search moves to the browser's own chrome.
- */
 /** When the numbers are taken, in ms after the readout mounts. */
 const SAMPLES = [0, 100, 300, 1000, 3000]
 
@@ -117,15 +125,15 @@ function Log({ onClose }: { onClose: () => void }) {
   return (
     <div className="diagnostics__log">
       <pre className="diagnostics__lines">{text || 'inget loggat'}</pre>
-      <div className="diagnostics__remedies">
+      <div className="diagnostics__buttons">
         <button
           type="button"
-          className="diagnostics__remedy"
+          className="diagnostics__button"
           onClick={() => void navigator.clipboard?.writeText(text)}
         >
           KOPIERA
         </button>
-        <button type="button" className="diagnostics__remedy" onClick={onClose}>
+        <button type="button" className="diagnostics__button" onClick={onClose}>
           STÄNG
         </button>
       </div>
@@ -171,17 +179,17 @@ export function Diagnostics() {
       <pre className="diagnostics__numbers">
         {(full ? ['VID START', ...atLoad, '', 'NU', ...now] : brief(now)).join('\n')}
       </pre>
-      <div className="diagnostics__remedies">
+      <div className="diagnostics__buttons">
         <button
           type="button"
-          className="diagnostics__remedy"
+          className="diagnostics__button"
           onClick={() => setFull((full) => !full)}
         >
           {full ? 'MINDRE' : 'MER'}
         </button>
         <button
           type="button"
-          className="diagnostics__remedy"
+          className="diagnostics__button"
           onClick={() => setShowing((showing) => !showing)}
         >
           LOGG

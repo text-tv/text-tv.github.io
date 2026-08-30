@@ -8,7 +8,6 @@ import { QuickLinks } from './components/QuickLinks'
 import { SWIPE_GUTTER_PX } from './swipe'
 import { HOME_PAGE, useTextTv } from './useTextTv'
 import { useSwipeNavigation, type PullState } from './useSwipeNavigation'
-import { useNoScrollRestoration } from './useNoScrollRestoration'
 import { useVisualViewport } from './useVisualViewport'
 
 /**
@@ -52,7 +51,6 @@ export function App() {
     refresh,
   } = useTextTv()
   useVisualViewport()
-  useNoScrollRestoration()
   const content = useRef<HTMLElement>(null)
   const track = useRef<HTMLDivElement>(null)
   const pullTrack = useRef<HTMLDivElement>(null)

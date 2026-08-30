@@ -4,9 +4,9 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 /*
- * Which build is running, for the `?diag` readout. Temporary, with the rest of
- * that scaffolding: a phone serves the app off a service worker cache, so
- * "does the device have my change yet" is otherwise unanswerable from a
+ * Which build is running, for the `?diag` readout. A phone serves the app off
+ * a service worker cache, so "does the device have my change yet" is the first
+ * question any report has to answer and is otherwise unanswerable from a
  * screenshot. Falls back to a dash where git is not available.
  */
 const build = (() => {

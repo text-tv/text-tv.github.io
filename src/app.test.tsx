@@ -2383,33 +2383,6 @@ describe('det synliga området', () => {
     await waitFor(() => expect(heightProperty()).toBe(''))
   })
 
-  /*
-   * The reload bug: iOS collapses its address bar by scrolling the page under
-   * it, records that offset in the history entry, and puts it back on a
-   * reload - where, with a fixed shell and nothing to scroll, it lands as the
-   * whole page drawn a toolbar's height too high.
-   */
-  it('låter inte webbläsaren återställa någon rullning', async () => {
-    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    const { unmount } = openOn('100')
-
-    await waitFor(() => expect(history.scrollRestoration).toBe('manual'))
-    expect(scrollTo).toHaveBeenCalledWith(0, 0)
-
-    // Nested scroll containers are restored separately, and scrollRestoration
-    // does not cover them - so a page taken out of the back-forward cache with
-    // a sheet parked mid-page has that put back by hand too.
-    const sheet = document.querySelector('.swipe-sheet') as HTMLElement
-    sheet.scrollTop = 120
-    window.dispatchEvent(new Event('pageshow'))
-    expect(sheet.scrollTop).toBe(0)
-
-    // The page is the only thing that asked for it, so it hands it back.
-    unmount()
-    expect(history.scrollRestoration).toBe('auto')
-    scrollTo.mockRestore()
-  })
-
   it('fungerar i en webbläsare utan visualViewport', async () => {
     openOn('100')
 

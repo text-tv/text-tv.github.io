@@ -40,7 +40,8 @@ const WATCH_MS = 3000
  */
 const SLOT_MARGIN_PX = 50
 
-type Measurements = {
+/** What the page can find out about where it has been put. */
+export type Measurements = {
   /** What the page is told its viewport is. */
   viewport: number
   /** The whole screen, toolbars included. */
@@ -60,6 +61,25 @@ type Measurements = {
 export const displaced = ({ viewport, screen, slot }: Measurements): boolean =>
   Math.abs(viewport - screen) <= 2 && viewport - slot > SLOT_MARGIN_PX
 
+/**
+ * What to do about it, decided apart from the doing so it can be read and
+ * tested as a table: correct it, leave it alone, or stop trying.
+ */
+export type Verdict = 'renavigate' | 'settle' | 'give-up'
+
+export function decide(state: {
+  standalone: boolean
+  measurements: Measurements
+  attempts: number
+}): Verdict {
+  // An installed copy has no browser toolbars and cannot be in this state.
+  if (state.standalone) return 'settle'
+  if (!displaced(state.measurements)) return 'settle'
+  // Two tries, then live with it: a device this does not help must not spend
+  // the session reloading.
+  return state.attempts < MAX_ATTEMPTS ? 'renavigate' : 'give-up'
+}
+
 /** `100svh` in pixels, which no property reports and only a box can answer. */
 const slotHeight = (): number => {
   const probe = document.createElement('div')
@@ -70,7 +90,35 @@ const slotHeight = (): number => {
   return height
 }
 
-const attempts = (): number => Number(sessionStorage.getItem(ATTEMPTS_KEY) ?? 0)
+/*
+ * Storage can throw rather than answer - a browser told to block it, an
+ * embedded view, a locked-down profile - and this runs before the first
+ * render, where an exception would leave the reader a blank page. A session
+ * that cannot count its attempts gets one and only one.
+ */
+const attempts = (): number => {
+  try {
+    return Number(sessionStorage.getItem(ATTEMPTS_KEY) ?? 0)
+  } catch {
+    return MAX_ATTEMPTS - 1
+  }
+}
+
+const rememberAttempt = (): void => {
+  try {
+    sessionStorage.setItem(ATTEMPTS_KEY, String(attempts() + 1))
+  } catch {
+    // Then it is not remembered, and the reader gets one attempt per load.
+  }
+}
+
+const forgetAttempts = (): void => {
+  try {
+    sessionStorage.removeItem(ATTEMPTS_KEY)
+  } catch {
+    // Nothing was stored to forget.
+  }
+}
 
 /**
  * The corrective navigation: the same page, with a parameter on it so the
@@ -79,7 +127,7 @@ const attempts = (): number => Number(sessionStorage.getItem(ATTEMPTS_KEY) ?? 0)
  * reader expects.
  */
 const renavigate = (): void => {
-  sessionStorage.setItem(ATTEMPTS_KEY, String(attempts() + 1))
+  rememberAttempt()
   const url = new URL(window.location.href)
   url.searchParams.set(MARKER, String(Date.now()))
   window.location.replace(url.toString())
@@ -93,29 +141,41 @@ const dropMarker = (): void => {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
+/** As index.html reads it: iOS answers one of the two, depending on its age. */
+const installed = (): boolean =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  Boolean((window.navigator as { standalone?: boolean }).standalone)
+
 export function resetChromeViewport(): void {
-  // An installed copy has no browser toolbars and cannot be in this state.
-  if (window.matchMedia('(display-mode: standalone)').matches) return
   if (!window.screen) return
 
   const look = () => {
-    if (!displaced({ viewport: window.innerHeight, screen: window.screen.height, slot: slotHeight() }))
-      return false
-    if (attempts() >= MAX_ATTEMPTS) return false
-    renavigate()
-    return true
+    const verdict = decide({
+      standalone: installed(),
+      measurements: {
+        viewport: window.innerHeight,
+        screen: window.screen.height,
+        slot: slotHeight(),
+      },
+      attempts: attempts(),
+    })
+    if (verdict === 'renavigate') renavigate()
+    return verdict
   }
 
   // The resize that does this lands a frame or two after the load, so it may
   // have happened before this ran or may be about to; both are covered.
-  if (look()) return
-  dropMarker()
-  // A load that came up right earns the next occurrence its attempts back.
-  sessionStorage.removeItem(ATTEMPTS_KEY)
+  const first = look()
+  if (first === 'renavigate') return
+  if (first === 'settle') {
+    dropMarker()
+    // A load that came up right earns the next occurrence its attempts back.
+    forgetAttempts()
+  }
 
   const watching = setTimeout(() => window.removeEventListener('resize', onResize), WATCH_MS)
   function onResize() {
-    if (look()) clearTimeout(watching)
+    if (look() === 'renavigate') clearTimeout(watching)
   }
   window.addEventListener('resize', onResize)
 }

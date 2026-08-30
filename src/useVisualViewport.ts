@@ -2,17 +2,18 @@ import { useEffect } from 'react'
 
 /**
  * How much shorter than the window the visible region has to get before it is
- * a keyboard rather than a browser's own chrome. A toolbar band is around a
- * hundred and twenty; a keyboard is several times that.
+ * a keyboard rather than a browser's own chrome. A status bar and two toolbars
+ * come to about two hundred; a keyboard is half the screen. The gap between
+ * those is where this sits, well clear of the chrome - mistaking chrome for a
+ * keyboard would pin the shell for the whole session.
  */
-const KEYBOARD_MIN_PX = 100
+const KEYBOARD_MIN_PX = 250
 
 /**
  * Pins the shell to the visible region while the keyboard is up.
  *
  * The rest of the time it publishes nothing and takes nothing back, so the
- * shell stays a flow box one `svh` tall - the shape that cannot be displaced
- * by a browser holding a scroll position the page cannot read. Only the
+ * shell stays a flow box one `svh` tall and needs no measuring. Only the
  * keyboard shrinks the visible region without shrinking the page, and only
  * then is the shell told in pixels where that region is.
  *
