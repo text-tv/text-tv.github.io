@@ -139,6 +139,27 @@ overlaps resolve to the nearest centre.
 The API client and the individual components have no unit tests by design;
 they are covered through the app-level seam.
 
+## Diagnosing on a phone
+
+Add `?diag` to the URL — `https://text-tv.github.io/?diag#300` — and a small
+green readout appears above the section rail. It shows which commit the running
+build came from, the viewport the browser has given the page, and where the
+shell sits inside it. `MER` expands that to everything measurable: the visual
+viewport, the safe-area insets, the scroll range, the viewport meta.
+
+`LOGG` opens the log. Every console line is kept from before the first render,
+along with uncaught errors and unhandled rejections, and `KOPIERA` puts the lot
+on the clipboard — which is how you get a phone session into a bug report.
+While the readout is open it also writes a line at intervals after boot and on
+every event that could move the page, so what arrives is a sequence rather than
+a snapshot.
+
+It exists because the browser bugs worth chasing here only happen on a phone,
+where there is no console to open. `src/viewportReset.ts` documents one such:
+Chrome for iOS leaves the web view at the full height of the screen after
+reloading a page reached by an in-app link, and nothing the page can measure
+says so.
+
 ## Deployment
 
 GitHub Pages, from `.github/workflows/deploy.yml`. Every push to `main` runs

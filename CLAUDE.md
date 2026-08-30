@@ -57,6 +57,14 @@ Production has no `VITE_SVT_API_BASE` override, so it uses the real endpoint.
   back button works.
 - Style teletext frames with `image-rendering: pixelated`; respect safe-area
   insets for installed/standalone display.
+- Most bugs worth chasing only appear on a phone, where there is no console.
+  `?diag` (as in `/?diag#300`) paints a readout over the page: the build's
+  commit, the viewport, and where the shell sits, with the full set behind
+  `MER`. `LOGG` shows everything the app has written to the console since boot
+  - `src/log.ts` mirrors it into a ring buffer from before the first render,
+  along with uncaught errors - and copies it to the clipboard, which is how a
+  phone session gets reported. Reach for it before guessing; a snapshot of the
+  numbers has settled arguments that days of theory did not.
 
 ## Project knowledge
 

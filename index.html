@@ -10,60 +10,15 @@
 
       Cover asks the browser to lay the page out edge to edge, under the system
       bars, and to hand the page the safe-area insets to keep its own content
-      clear. In an installed app that is what we want and the insets are real.
-      In a tab it is not: iOS Chrome makes the page the full height of the
-      screen, shows it in the shorter slot between its own toolbars, hands back
-      insets of 0px - and after a reload rests that page at the bottom of its
-      travel rather than the top. The shell is then drawn a status bar and an
-      address bar too high, with its own black below the bottom bar, and no
-      measurement the page can take says so.
+      clear. In an installed app that is what we want and the insets are real -
+      the bar's bottom inset is measured from them. In a tab they come back as
+      0px, so cover would only mean the page drawing under chrome it cannot
+      measure.
 
       Inline and in the head, so it is decided before the first layout; a meta
       rewritten later does not move iOS.
     -->
-    <!--
-      `?tall` gives the document a real scroll range from the first paint.
-
-      Temporary, with the rest of the `?diag` scaffolding. Every other page
-      that does not show this bug - txtv.nu among them - is an ordinary
-      scrollable page, where the browser's toolbar machinery runs as designed.
-      Ours has been exactly one viewport tall since the shell went into flow,
-      and a range added later did nothing; this asks whether a range present
-      when the page loads is what the browser needs.
-    -->
     <script>
-      if (window.location.search.indexOf('tall') !== -1) {
-        document.documentElement.classList.add('tall-probe')
-      }
-
-      /*
-        `?fix` - the candidate. Temporary, with the rest of the scaffolding.
-
-        A reload restores a scroll offset of a toolbar's height. With no scroll
-        range the page cannot give it back: it is not a position the document
-        holds, so scrollTo writes nothing and the page is stuck with it. So the
-        range is opened here, before the first paint, which turns the offset
-        into an ordinary scroll; the page is scrolled back to the top once the
-        load has settled; and then the range is closed again, leaving the shell
-        exactly one slot tall as it is meant to be.
-      */
-      if (window.location.search.indexOf('fix') !== -1) {
-        document.documentElement.classList.add('tall-probe')
-        var toTheTop = function () {
-          window.scrollTo(0, 0)
-        }
-        window.addEventListener('pageshow', toTheTop)
-        window.addEventListener('load', function () {
-          toTheTop()
-          requestAnimationFrame(function () {
-            toTheTop()
-            requestAnimationFrame(function () {
-              toTheTop()
-              document.documentElement.classList.remove('tall-probe')
-            })
-          })
-        })
-      }
       if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
         const viewport = document.querySelector('meta[name="viewport"]')
         viewport.content += ', viewport-fit=cover'

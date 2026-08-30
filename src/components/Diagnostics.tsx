@@ -69,27 +69,6 @@ const read = (probe: HTMLElement): string[] => {
  * puts the page right is the answer; if none does, the shell is not what is
  * displaced and the search moves to the browser's own chrome.
  */
-/**
- * The one experiment left worth a button.
- *
- * Chrome's own source resets its toolbar bookkeeping only for a navigation
- * that changes document, which a reloaded hash entry is not - so the stale
- * state survives into the new page. This asks the question the whole proposed
- * fix rests on: does a *cross-document* navigation to the same page come back
- * in the good state? The junk parameter is what makes it one; a plain reload
- * would replay the same-document entry and land in the same place.
- */
-const REMEDIES: { label: string; run: () => void }[] = [
-  {
-    label: 'NY NAV',
-    run: () => {
-      const url = new URL(window.location.href)
-      url.searchParams.set('r', String(Date.now()))
-      window.location.replace(url.toString())
-    },
-  },
-]
-
 /** When the numbers are taken, in ms after the readout mounts. */
 const SAMPLES = [0, 100, 300, 1000, 3000]
 
@@ -193,11 +172,6 @@ export function Diagnostics() {
         {(full ? ['VID START', ...atLoad, '', 'NU', ...now] : brief(now)).join('\n')}
       </pre>
       <div className="diagnostics__remedies">
-        {REMEDIES.map(({ label, run }) => (
-          <button key={label} type="button" className="diagnostics__remedy" onClick={run}>
-            {label}
-          </button>
-        ))}
         <button
           type="button"
           className="diagnostics__remedy"

@@ -974,34 +974,22 @@ body {
 }
 
 /*
- * `?tall`: a document taller than the slot, from the first paint. Temporary,
- * with the rest of the scaffolding - see the comment in index.html.
- */
-.tall-probe body {
-  min-height: calc(100svh + 240px);
-}
-
-/* The one shell the `?diag` buttons still swap to. Temporary, with the rest. */
-.diag-dvh .app {
-  height: 100dvh;
-}
-
-/*
- * The `?diag` readout. Temporary scaffolding - see `Diagnostics.tsx`, and take
- * this block with it.
+ * The `?diag` readout.
  *
- * Small, and high enough up to leave the rail and the bottom bar clear: the
- * readout is read while the page behind it is wrong, and covering the chrome
- * hides half of what is being judged. Two lines by default, the rest behind a
- * button.
+ * It sits in the band between the page and the rail - the part of a teletext
+ * frame that is usually empty - rather than over the middle of the page, and
+ * it is anchored by its bottom edge so that opening the log grows it upwards
+ * into the page instead of downwards over the chrome. The rail and the bar
+ * stay visible either way: they are half of what is being judged when
+ * something looks wrong.
  */
 .diagnostics {
   position: fixed;
-  top: 20%;
+  bottom: calc(var(--rail-height) + var(--bar-height) + var(--bar-inset) + 8px);
   left: 8px;
   right: 8px;
   z-index: 9;
-  max-height: 46vh;
+  max-height: 50vh;
   overflow-y: auto;
   padding: 6px;
   border: 1px solid #00ff00;
@@ -1010,11 +998,9 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* The log needs the screen; the numbers alone are happy in a band. */
+/* The log wants room, and takes it from the page above rather than the chrome. */
 .diagnostics--logging {
-  top: 6%;
-  bottom: 6%;
-  max-height: none;
+  max-height: 76vh;
 }
 
 .diagnostics__numbers {
@@ -1052,7 +1038,7 @@ body {
 }
 
 .diagnostics__remedy {
-  flex: 1 0 28%;
+  flex: 1 0 40%;
   min-height: 34px;
   padding: 0;
   border: 1px solid #00ff00;
