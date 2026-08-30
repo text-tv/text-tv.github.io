@@ -35,6 +35,35 @@
       if (window.location.search.indexOf('tall') !== -1) {
         document.documentElement.classList.add('tall-probe')
       }
+
+      /*
+        `?fix` - the candidate. Temporary, with the rest of the scaffolding.
+
+        A reload restores a scroll offset of a toolbar's height. With no scroll
+        range the page cannot give it back: it is not a position the document
+        holds, so scrollTo writes nothing and the page is stuck with it. So the
+        range is opened here, before the first paint, which turns the offset
+        into an ordinary scroll; the page is scrolled back to the top once the
+        load has settled; and then the range is closed again, leaving the shell
+        exactly one slot tall as it is meant to be.
+      */
+      if (window.location.search.indexOf('fix') !== -1) {
+        document.documentElement.classList.add('tall-probe')
+        var toTheTop = function () {
+          window.scrollTo(0, 0)
+        }
+        window.addEventListener('pageshow', toTheTop)
+        window.addEventListener('load', function () {
+          toTheTop()
+          requestAnimationFrame(function () {
+            toTheTop()
+            requestAnimationFrame(function () {
+              toTheTop()
+              document.documentElement.classList.remove('tall-probe')
+            })
+          })
+        })
+      }
       if (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
         const viewport = document.querySelector('meta[name="viewport"]')
         viewport.content += ', viewport-fit=cover'
