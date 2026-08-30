@@ -173,6 +173,14 @@ const dropMarker = (): void => {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
+/**
+ * Whether this document is the one a correction fetched, recorded at boot
+ * because the marker is stripped from the URL moments later. The readout shows
+ * it: a displaced page that is *also* the correction means the renavigation
+ * did not cure it, which is a different problem from the trigger never firing.
+ */
+export let arrivedCorrected = false
+
 /** As index.html reads it: iOS answers one of the two, depending on its age. */
 const installed = (): boolean =>
   window.matchMedia('(display-mode: standalone)').matches ||
@@ -194,6 +202,7 @@ export function resetChromeViewport(): void {
   // This load is the correction. Whatever it looks like, it was already
   // fetched as a document, so there is nothing left to force.
   if (new URL(window.location.href).searchParams.has(MARKER)) {
+    arrivedCorrected = true
     dropMarker()
     forgetAttempts()
     return
