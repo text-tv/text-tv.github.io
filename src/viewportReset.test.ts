@@ -40,35 +40,15 @@ describe('känner igen det förskjutna läget', () => {
 describe('bestämmer vad som ska göras åt det', () => {
   const displacedPhone = { viewport: 874, screen: 874, slot: 676 }
   const healthyPhone = { viewport: 676, screen: 874, slot: 676 }
-  /** An ordinary load in a browser this does not happen to. */
-  const calm = { standalone: false, affected: false, reloaded: false, attempts: 0 }
 
-  it('hämtar om sidan när måtten visar att den är förskjuten', () => {
-    expect(decide({ ...calm, measurements: displacedPhone })).toBe('renavigate')
+  it('hämtar om sidan när den är förskjuten', () => {
+    expect(decide({ standalone: false, measurements: displacedPhone, attempts: 0 })).toBe(
+      'renavigate',
+    )
   })
 
   it('låter en frisk sida vara', () => {
-    expect(decide({ ...calm, measurements: healthyPhone })).toBe('settle')
-  })
-
-  /*
-   * The second way the bug shows: every number reads correctly and the page is
-   * displaced anyway. There is nothing to measure, so the circumstance is the
-   * trigger - Chrome for iOS, out of a reload, which is the case its own reset
-   * skips.
-   */
-  it('hämtar om efter en omladdning i chrome på ios, hur friska måtten än ser ut', () => {
-    expect(
-      decide({ ...calm, affected: true, reloaded: true, measurements: healthyPhone }),
-    ).toBe('renavigate')
-  })
-
-  it('rör inte en vanlig navigering i samma webbläsare', () => {
-    expect(decide({ ...calm, affected: true, measurements: healthyPhone })).toBe('settle')
-  })
-
-  it('rör inte en omladdning i en webbläsare utan felet', () => {
-    expect(decide({ ...calm, reloaded: true, measurements: healthyPhone })).toBe('settle')
+    expect(decide({ standalone: false, measurements: healthyPhone, attempts: 0 })).toBe('settle')
   })
 
   /*
@@ -76,16 +56,15 @@ describe('bestämmer vad som ska göras åt det', () => {
    * session reloading itself. Two tries, then it lives with the picture.
    */
   it('ger upp efter två försök i stället för att snurra', () => {
-    const broken = { ...calm, affected: true, reloaded: true, measurements: healthyPhone }
-    expect(decide({ ...broken, attempts: 1 })).toBe('renavigate')
-    expect(decide({ ...broken, attempts: 2 })).toBe('give-up')
-    expect(decide({ ...broken, attempts: 9 })).toBe('give-up')
+    expect(decide({ standalone: false, measurements: displacedPhone, attempts: 1 })).toBe(
+      'renavigate',
+    )
+    expect(decide({ standalone: false, measurements: displacedPhone, attempts: 2 })).toBe('give-up')
+    expect(decide({ standalone: false, measurements: displacedPhone, attempts: 9 })).toBe('give-up')
   })
 
   // An installed copy has no browser toolbars and cannot be in this state.
   it('rör inte en installerad kopia', () => {
-    expect(
-      decide({ ...calm, standalone: true, affected: true, reloaded: true, measurements: displacedPhone }),
-    ).toBe('settle')
+    expect(decide({ standalone: true, measurements: displacedPhone, attempts: 0 })).toBe('settle')
   })
 })
