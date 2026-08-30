@@ -19,7 +19,7 @@ related_components: [frontend]
 
 ## Context
 
-`src/index.css` is imported by exactly one module, `src/main.tsx`, and the tests never render it — `src/app.test.tsx` mounts `<App />` directly. Every one of the 256 tests therefore passes without a single byte of the stylesheet being parsed, on top of happy-dom computing no layout in the first place.
+`src/index.css` is imported by exactly one module, `src/main.tsx`, and the tests never render it — `src/app.test.tsx` mounts `<App />` directly. Every test in the suite therefore passes without a single byte of the stylesheet being parsed, on top of happy-dom computing no layout in the first place.
 
 This is not a gap you can feel while writing tests, because the suite is otherwise unusually thorough: it drives real gestures, fakes the network at the HTTP boundary, and catches genuine state bugs daily. It is easy to read a green run as a statement about the feature. For anything you would check by looking, it is not a statement at all.
 
@@ -43,6 +43,8 @@ So when a plan hands over final numbers, one of two things has to be true, and t
 
 A useful browser pass asserts the numbers the design actually named — `getBoundingClientRect().width`, `getComputedStyle(el).textAlign`, `outlineStyle` — not just that a page rendered. Screenshots are worth capturing beside those assertions: the focus-ring box was obvious in an image and invisible in every assertion written before it.
 
+**A browser pass is not the end of the ladder either.** It closes the gap between "the stylesheet was never parsed" and "these are the rules the engine applied", which is where the three defects above lived. It says nothing about the box the browser hands the page in the first place: `docs/solutions/runtime-errors/a-reload-of-a-hash-entry-leaves-chrome-for-ios-sized-to-the-screen-not-the-slot.md` is a visual defect that reproduces on no desktop browser and in no headless run, because it is Chrome for iOS mis-sizing its own web view. Scripted Chromium answers questions about stylesheet and layout; shell geometry — viewports, browser chrome, safe areas — is answered only on the device, which is what the app's on-device readout exists for.
+
 ## Verification
 
 Rendering `BottomBar` in the test environment and asking it what it knows:
@@ -62,4 +64,5 @@ The same three values read from Chromium against the running app: `78`, `center`
 - `docs/solutions/best-practices/synthetic-events-produce-no-follow-on-events.md` — the sibling gap in the same environment, and the doc that already named this one: it lists the no-layout gap among the family, and closes by saying geometry "needs a real headless browser, which is how the geometry claims in this repo have been checked before." That sentence predates the three incidents above by four days. It was already in the corpus while the layout defects were shipping, and the browser pass it prescribes was skipped anyway on the mistaken belief that no browser was available here. The corpus knew; the answer was in the directory `CLAUDE.md` points at.
 - `docs/solutions/runtime-errors/canvas-getimagedata-is-colour-managed.md` — its Related Issues carries a fourth, previously unwritten incident of this same class: double-height rows sized by `font-size` clipped their headlines, and no test could see it. Same higher-order lesson — some classes of bug need a real render, and no test configuration fixes that.
 - `docs/solutions/best-practices/measure-generated-lookup-tables-by-holding-data-out.md` — where "a check that cannot fail is not a check" was first named in this repo. This is that pattern applied to a whole dimension of the product rather than to one assertion.
+- `docs/solutions/runtime-errors/a-reload-of-a-hash-entry-leaves-chrome-for-ios-sized-to-the-screen-not-the-slot.md` — the rung above this one. Where this doc's answer is "render it in a browser", that bug's answer is "read the numbers on the phone", because the browser doing the rendering was itself the defect.
 - `docs/plans/2026-08-28-1954-fix-use-the-os-numeric-keyboard-plan.md` — R4 is the requirement in question, and KTD5 records why the button's centring rule could not survive the change to an input.

@@ -64,8 +64,18 @@ A snap is interruptible. A finger landing while one is running takes it over —
 
 **Page field** — the one control that both reports the page being read and takes the page being asked for. It reads as the current number until it is focused, at which point it empties and shows the digits typed so far instead. There were two controls for these two jobs and they said the same thing twice; merging them means the number you are reading is the thing you tap to change it. The keyboard that answers the tap is the phone's own — a numeric keypad is something every operating system already has, and drawing a second one in the app was tried and withdrawn. It goes quiet — dimmed rather than replaced — while a sideways drag is far enough along to change the page, because the number is about to be wrong but the drag can still be abandoned. An entry is abandoned by leaving the field, and abandoning one restores the page number rather than keeping half of a number nobody asked for.
 
+## The shell
+
+**Shell** — the app's own frame around a page: the freshness bar, the section rail, the sheet and the bottom bar, as one box the height of the slot. It lives in the document rather than pinned over it, so the page is exactly as tall as what is on screen and there is no scroll position for anything to hold or restore.
+
+**Slot** — the part of the screen a browser actually shows the page in, once its own toolbars are accounted for. `100svh` is the slot, which is why the shell is sized to it and never to `dvh` or `100%`: both of those resolve against the taller toolbars-collapsed viewport.
+
+**Readout** — the diagnostic overlay a query parameter turns on, kept in the app rather than removed with the bug that prompted it. It is the only console a phone has: the running build, the numbers the shell is laid out from, and a log copyable to the clipboard. A device-only bug is diagnosed by reading it, not by reasoning about what the code should be doing.
+
 ## Flagged ambiguities
 
 - "Refresh" and "revalidation" are both the app asking for a page it already holds. A **refresh** is the reader's request and a **revalidation** is the app's own; they are never used interchangeably, because almost everything the reader sees turns on which one is running.
+
+- "Viewport" is two things on a phone. The **viewport** is the height the browser tells the page it has; the **slot** is the height it actually shows. They are normally the same, and a browser that lets them differ while still drawing its own toolbars displaces everything the page draws — so name which one is meant wherever both could be.
 
 - "Gutter" named two different things once sheets could move. The **edge gutter** is the dead strip at the screen's sides where the app declines the drag to the operating system; the gap between two sheets is just the gutter, and it is a matter of drawing rather than of gestures. Neither is the other, and the qualified name is the one to use when both are in play.
