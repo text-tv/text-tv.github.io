@@ -146,8 +146,19 @@ const installed = (): boolean =>
   window.matchMedia('(display-mode: standalone)').matches ||
   Boolean((window.navigator as { standalone?: boolean }).standalone)
 
+/**
+ * `?nofix` in the query stands the workaround down.
+ *
+ * The correction hides the bug rather than ending it, and a hidden bug cannot
+ * be looked at: the state this browser gets into is only observable on a phone
+ * and only until the page renavigates. So there is a way to ask for it back -
+ * to see whether a Chrome flag or a Chrome release changes the behaviour, and
+ * to find out whether this is still earning its place.
+ */
+const standDownAsked = () => new URLSearchParams(window.location.search).has('nofix')
+
 export function resetChromeViewport(): void {
-  if (!window.screen) return
+  if (!window.screen || standDownAsked()) return
 
   const look = () => {
     const verdict = decide({

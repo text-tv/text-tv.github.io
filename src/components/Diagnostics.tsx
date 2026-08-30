@@ -67,7 +67,7 @@ const read = (probe: HTMLElement): string[] => {
     `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
     `meta ${viewportMeta()?.content ?? '-'}`,
     // The two the workaround decides on, and what it has done about them.
-    `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}`,
+    `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}${new URLSearchParams(window.location.search).has('nofix') ? ' NOFIX' : ''}`,
     `rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1} tangentbord ${document.documentElement.dataset.keyboard === undefined ? 'nej' : 'ja'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
