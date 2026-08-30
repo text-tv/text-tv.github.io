@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { format, log, subscribe } from '../log'
 
 /**
  * Temporary scaffolding for a bug that only shows on a phone: the numbers the
@@ -121,6 +122,33 @@ const REMEDIES: { label: string; run: () => void }[] = [
   },
 ]
 
+/**
+ * The log, painted on the phone. Copying is the point: a screenshot of forty
+ * lines is unreadable, and the clipboard survives being pasted into a message.
+ */
+function Log({ onClose }: { onClose: () => void }) {
+  const lines = useSyncExternalStore(subscribe, log)
+  const text = lines.map(format).join('\n')
+
+  return (
+    <div className="diagnostics__log">
+      <pre className="diagnostics__lines">{text || 'inget loggat'}</pre>
+      <div className="diagnostics__remedies">
+        <button
+          type="button"
+          className="diagnostics__remedy"
+          onClick={() => void navigator.clipboard?.writeText(text)}
+        >
+          KOPIERA
+        </button>
+        <button type="button" className="diagnostics__remedy" onClick={onClose}>
+          STÄNG
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function Diagnostics() {
   /*
    * Two readings: the one the page loaded with, and the one it has now. The
@@ -129,6 +157,7 @@ export function Diagnostics() {
    */
   const [atLoad, setAtLoad] = useState<string[]>([])
   const [now, setNow] = useState<string[]>([])
+  const [showing, setShowing] = useState(false)
 
   useEffect(() => {
     const probe = insetProbe()
@@ -144,7 +173,7 @@ export function Diagnostics() {
   // Centred, not pinned to an edge: the shell it reports on may itself be
   // drawn off the top of the screen, and so would a readout stuck to it.
   return (
-    <div className="diagnostics">
+    <div className={`diagnostics${showing ? ' diagnostics--logging' : ''}`}>
       <pre className="diagnostics__numbers">
         {['VID START', ...atLoad, '', 'NU', ...now].join('\n')}
       </pre>
@@ -154,7 +183,15 @@ export function Diagnostics() {
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          className="diagnostics__remedy"
+          onClick={() => setShowing((showing) => !showing)}
+        >
+          LOGG
+        </button>
       </div>
+      {showing && <Log onClose={() => setShowing(false)} />}
     </div>
   )
 }
