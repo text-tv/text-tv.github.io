@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { format, log, subscribe } from '../log'
+import { format, log, record, subscribe } from '../log'
 
 /**
  * Temporary scaffolding for a bug that only shows on a phone: the numbers the
@@ -149,6 +149,43 @@ function Log({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** When the numbers are taken, in ms after the readout mounts. */
+const SAMPLES = [0, 100, 300, 1000, 3000]
+
+/**
+ * The numbers over time rather than once they have settled.
+ *
+ * Every reading so far has been a snapshot of an already-broken page, and they
+ * all said the same correct thing. What has never been seen is the sequence: a
+ * restored offset that arrives late, or a scroll the page does not think it
+ * has. Every event that could move the page writes a line too, so a drag that
+ * puts the picture right is in the log next to the scroll it produced.
+ */
+const traced = (probe: HTMLElement, why: string) => record('log', why, read(probe).join(' | '))
+
+function useTrace(probe: HTMLElement | null) {
+  useEffect(() => {
+    if (!probe) return
+
+    const timers = SAMPLES.map((at) => setTimeout(() => traced(probe, `+${at}ms`), at))
+    const events = ['scroll', 'resize', 'pageshow', 'visibilitychange', 'touchend', 'orientationchange']
+    // A drag fires scroll by the frame, and three hundred lines of it would
+    // push the boot off the top of the log.
+    let last = 0
+    const note = (event: Event) => {
+      const now = performance.now()
+      if (event.type === 'scroll' && now - last < 120) return
+      last = now
+      traced(probe, event.type)
+    }
+    for (const event of events) window.addEventListener(event, note, { passive: true })
+    return () => {
+      for (const timer of timers) clearTimeout(timer)
+      for (const event of events) window.removeEventListener(event, note)
+    }
+  }, [probe])
+}
+
 export function Diagnostics() {
   /*
    * Two readings: the one the page loaded with, and the one it has now. The
@@ -158,9 +195,12 @@ export function Diagnostics() {
   const [atLoad, setAtLoad] = useState<string[]>([])
   const [now, setNow] = useState<string[]>([])
   const [showing, setShowing] = useState(false)
+  const [probe, setProbe] = useState<HTMLElement | null>(null)
+  useTrace(probe)
 
   useEffect(() => {
     const probe = insetProbe()
+    setProbe(probe)
     setAtLoad(read(probe))
     setNow(read(probe))
     const tick = setInterval(() => setNow(read(probe)), TICK)
