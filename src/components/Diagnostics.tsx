@@ -70,84 +70,25 @@ const read = (probe: HTMLElement): string[] => {
  * displaced and the search moves to the browser's own chrome.
  */
 /**
- * The shell is now a flow box exactly one slot tall, so the page has no scroll
- * range at all - and the displacement survived that. Which leaves the offset
- * living in the browser's own scroll view, where the page can only reach it by
- * causing a real scroll. These two try that, one temporarily and one for good.
+ * The one experiment left worth a button.
+ *
+ * Chrome's own source resets its toolbar bookkeeping only for a navigation
+ * that changes document, which a reloaded hash entry is not - so the stale
+ * state survives into the new page. This asks the question the whole proposed
+ * fix rests on: does a *cross-document* navigation to the same page come back
+ * in the good state? The junk parameter is what makes it one; a plain reload
+ * would replay the same-document entry and land in the same place.
  */
 const REMEDIES: { label: string; run: () => void }[] = [
   {
-    // Borrow a scroll range for three frames, scroll down and back up, give it
-    // back. An upward scroll to the top is what makes a browser re-apply its
-    // chrome insets; there is currently nothing in the page that can produce
-    // one.
-    label: 'KNUFF',
+    label: 'NY NAV',
     run: () => {
-      const root = document.documentElement
-      const spacer = document.createElement('div')
-      spacer.style.height = '200px'
-      document.body.append(spacer)
-      root.style.overflowY = 'auto'
-      requestAnimationFrame(() => {
-        window.scrollTo(0, 200)
-        requestAnimationFrame(() => {
-          window.scrollTo(0, 0)
-          requestAnimationFrame(() => {
-            spacer.remove()
-            root.style.overflowY = ''
-          })
-        })
-      })
-    },
-  },
-  {
-    // The other way round: keep a real range for good, so the browser's offset
-    // is an ordinary document scroll - one the page can see, clamp and set.
-    label: 'LVH',
-    run: () => {
-      document.body.style.minHeight = '100lvh'
-      window.scrollTo(0, 0)
-    },
-  },
-  {
-    label: 'DVH',
-    run: () => document.documentElement.classList.toggle('diag-dvh'),
-  },
-  {
-    label: 'AV',
-    run: () => {
-      document.documentElement.classList.remove('diag-dvh', 'diag-flow', 'diag-botten', 'diag-fyll')
-      document.body.style.minHeight = ''
+      const url = new URL(window.location.href)
+      url.searchParams.set('r', String(Date.now()))
+      window.location.replace(url.toString())
     },
   },
 ]
-
-/**
- * The log, painted on the phone. Copying is the point: a screenshot of forty
- * lines is unreadable, and the clipboard survives being pasted into a message.
- */
-function Log({ onClose }: { onClose: () => void }) {
-  const lines = useSyncExternalStore(subscribe, log)
-  const text = lines.map(format).join('\n')
-
-  return (
-    <div className="diagnostics__log">
-      <pre className="diagnostics__lines">{text || 'inget loggat'}</pre>
-      <div className="diagnostics__remedies">
-        <button
-          type="button"
-          className="diagnostics__remedy"
-          onClick={() => void navigator.clipboard?.writeText(text)}
-        >
-          KOPIERA
-        </button>
-        <button type="button" className="diagnostics__remedy" onClick={onClose}>
-          STÄNG
-        </button>
-      </div>
-    </div>
-  )
-}
 
 /** When the numbers are taken, in ms after the readout mounts. */
 const SAMPLES = [0, 100, 300, 1000, 3000]
@@ -186,6 +127,39 @@ function useTrace(probe: HTMLElement | null) {
   }, [probe])
 }
 
+/**
+ * The log, painted on the phone. Copying is the point: a screenshot of forty
+ * lines is unreadable, and the clipboard survives being pasted into a message.
+ */
+function Log({ onClose }: { onClose: () => void }) {
+  const lines = useSyncExternalStore(subscribe, log)
+  const text = lines.map(format).join('\n')
+
+  return (
+    <div className="diagnostics__log">
+      <pre className="diagnostics__lines">{text || 'inget loggat'}</pre>
+      <div className="diagnostics__remedies">
+        <button
+          type="button"
+          className="diagnostics__remedy"
+          onClick={() => void navigator.clipboard?.writeText(text)}
+        >
+          KOPIERA
+        </button>
+        <button type="button" className="diagnostics__remedy" onClick={onClose}>
+          STÄNG
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/*
+ * Three lines at a glance: which build is running, the viewport - the number
+ * the bug lives in - and where the shell sits inside it. The rest on request.
+ */
+const brief = (lines: string[]) => [lines[0], lines[1], lines[lines.length - 1]]
+
 export function Diagnostics() {
   /*
    * Two readings: the one the page loaded with, and the one it has now. The
@@ -195,6 +169,7 @@ export function Diagnostics() {
   const [atLoad, setAtLoad] = useState<string[]>([])
   const [now, setNow] = useState<string[]>([])
   const [showing, setShowing] = useState(false)
+  const [full, setFull] = useState(false)
   const [probe, setProbe] = useState<HTMLElement | null>(null)
   useTrace(probe)
 
@@ -215,7 +190,7 @@ export function Diagnostics() {
   return (
     <div className={`diagnostics${showing ? ' diagnostics--logging' : ''}`}>
       <pre className="diagnostics__numbers">
-        {['VID START', ...atLoad, '', 'NU', ...now].join('\n')}
+        {(full ? ['VID START', ...atLoad, '', 'NU', ...now] : brief(now)).join('\n')}
       </pre>
       <div className="diagnostics__remedies">
         {REMEDIES.map(({ label, run }) => (
@@ -223,6 +198,13 @@ export function Diagnostics() {
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          className="diagnostics__remedy"
+          onClick={() => setFull((full) => !full)}
+        >
+          {full ? 'MINDRE' : 'MER'}
+        </button>
         <button
           type="button"
           className="diagnostics__remedy"
