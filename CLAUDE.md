@@ -64,9 +64,7 @@ Production has no `VITE_SVT_API_BASE` override, so it uses the real endpoint.
   - `src/log.ts` mirrors it into a ring buffer from before the first render,
   along with uncaught errors - and copies it to the clipboard, which is how a
   phone session gets reported. Reach for it before guessing; a snapshot of the
-  numbers has settled arguments that days of theory did not. `?nofix` stands
-  down the Chrome for iOS workaround in `src/viewportReset.ts` for one load, so
-  the browser's own behaviour can be looked at rather than hidden.
+  numbers has settled arguments that days of theory did not.
 
 ## Project knowledge
 

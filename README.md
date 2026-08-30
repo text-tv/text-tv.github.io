@@ -160,11 +160,6 @@ Chrome for iOS leaves the web view at the full height of the screen after
 reloading a page reached by an in-app link, and nothing the page can measure
 says so.
 
-`?nofix` stands that workaround down for one load. The correction hides the bug
-rather than ending it, so this is how you look at the browser's own behaviour
-again — to see whether a Chrome flag or a Chrome release changes it, or whether
-the workaround is still earning its place. `?nofix&diag` gives you both.
-
 ## Deployment
 
 GitHub Pages, from `.github/workflows/deploy.yml`. Every push to `main` runs

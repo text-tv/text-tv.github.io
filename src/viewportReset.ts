@@ -141,33 +141,13 @@ const dropMarker = (): void => {
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
-/**
- * `?nofix` in the query stands the workaround down.
- *
- * The correction hides the bug rather than ending it, and a hidden bug cannot
- * be looked at: the state this browser gets into is only observable on a phone
- * and only until the page renavigates. So there is a way to ask for it back -
- * to see whether a Chrome flag or a Chrome release changes the behaviour, and
- * to find out whether this is still earning its place.
- */
-const standDownAsked = () => new URLSearchParams(window.location.search).has('nofix')
-
-/**
- * Whether this document is the one a correction fetched, recorded at boot
- * because the marker is stripped from the URL moments later. The readout shows
- * it: a displaced page that is *also* the correction means the renavigation
- * did not cure it, which is a different problem from the trigger never firing.
- */
-export let arrivedCorrected = false
-
 /** As index.html reads it: iOS answers one of the two, depending on its age. */
 const installed = (): boolean =>
   window.matchMedia('(display-mode: standalone)').matches ||
   Boolean((window.navigator as { standalone?: boolean }).standalone)
 
 export function resetChromeViewport(): void {
-  arrivedCorrected = new URL(window.location.href).searchParams.has(MARKER)
-  if (!window.screen || standDownAsked()) return
+  if (!window.screen) return
 
   const look = () => {
     const verdict = decide({

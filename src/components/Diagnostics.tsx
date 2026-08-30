@@ -1,6 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { format, log, record, subscribe } from '../log'
-import { arrivedCorrected } from '../viewportReset'
 
 /**
  * The app's console, for the machine that has none.
@@ -68,11 +67,8 @@ const read = (probe: HTMLElement): string[] => {
     `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
     `meta ${viewportMeta()?.content ?? '-'}`,
     // The two the workaround decides on, and what it has done about them.
-    `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}${new URLSearchParams(window.location.search).has('nofix') ? ' NOFIX' : ''}`,
+    `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}`,
     `rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1} tangentbord ${document.documentElement.dataset.keyboard === undefined ? 'nej' : 'ja'}`,
-    // What the workaround's blunt trigger reads: the browser, and how this
-    // document was arrived at.
-    `nav ${(performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type ?? '-'} ${/CriOS/.test(navigator.userAgent) ? 'crios' : 'annan'} ${arrivedCorrected ? 'RATTAD' : 'orattad'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the
     // shell's own top stays at zero.
