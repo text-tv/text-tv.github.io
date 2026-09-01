@@ -13,7 +13,8 @@ import { format, log, record, subscribe } from '../log'
  * because a snapshot of an already-broken page is no use: every number in one
  * agrees with every other. What is worth having is the sequence, which is why
  * the log takes a reading at intervals after boot and on every event that
- * could move the page. `src/viewportReset.ts` is the bug that proved it.
+ * could move the page. The Chrome for iOS view-sizing bug proved it: every
+ * settled snapshot of an already-broken page was internally consistent.
  */
 /** The commit this bundle was built from; see the define in vite.config.ts. */
 declare const __BUILD__: string
@@ -66,8 +67,8 @@ const read = (probe: HTMLElement): string[] => {
     `safe t ${inset.paddingTop} b ${inset.paddingBottom} screenY ${round(window.screenY)}`,
     `skarm ${screen.width}x${screen.height} ${matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'flik'}`,
     `meta ${viewportMeta()?.content ?? '-'}`,
-    // The two the workaround decides on, and what it has done about them.
-    `springa ${round(slot())} forsok ${sessionStorage.getItem('texttv:omritad') ?? 0}`,
+    // What 100svh resolves to, which no property reports and only a box answers.
+    `springa ${round(slot())}`,
     `rull ${document.scrollingElement ? document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight : -1} tangentbord ${document.documentElement.dataset.keyboard === undefined ? 'nej' : 'ja'}`,
     // The one that separates a moved viewport from a scrolled document: html
     // is not fixed, so a scrolled document drags its top negative while the

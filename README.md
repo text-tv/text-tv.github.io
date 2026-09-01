@@ -155,10 +155,9 @@ every event that could move the page, so what arrives is a sequence rather than
 a snapshot.
 
 It exists because the browser bugs worth chasing here only happen on a phone,
-where there is no console to open. `src/viewportReset.ts` documents one such:
-Chrome for iOS leaves the web view at the full height of the screen after
-reloading a page reached by an in-app link, and nothing the page can measure
-says so.
+where there is no console to open. Chrome for iOS is one such: it leaves the
+web view at the full height of the screen after reloading a page reached by an
+in-app link, and nothing the page can measure says so.
 
 ## Deployment
 

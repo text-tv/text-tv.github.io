@@ -89,8 +89,8 @@
    * taller than what is on screen and hands the page a scroll range it has no
    * use for. svh is the toolbars-shown height, so the shell is exactly what
    * the reader can see. JavaScript overwrites this only while the keyboard is
-   * up - see `src/viewportReset.ts` for the one browser that mis-sizes the
-   * view itself, which no unit can defend against.
+   * up. Chrome for iOS can still mis-size the view itself, which no unit can
+   * defend against - see the solutions doc on reloading a hash entry.
    */
   --viewport-height: 100vh;
   color-scheme: dark only;
