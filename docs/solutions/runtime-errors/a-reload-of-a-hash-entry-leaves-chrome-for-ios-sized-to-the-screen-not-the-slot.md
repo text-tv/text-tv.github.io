@@ -11,8 +11,9 @@ symptoms:
   - Only Chrome for iOS; Safari and Brave on the same phone are unaffected
   - "Nothing the page can measure disagrees: safe-area insets, visualViewport offsets, scrollY and every rect are self-consistent and correct"
   - Rotating the phone, or locking and unlocking it, clears it instantly
-root_cause: wrong_api
-resolution_type: code_fix
+  - Unfixed. Only the fragment reload is affected; a reload of a pushState entry at a real path is not
+root_cause: browser_bug
+resolution_type: unresolved
 severity: high
 tags: [chrome-ios, viewport, slot, svh, hash-routing, same-document-navigation, visualviewport, device-only-bug]
 ---
@@ -47,6 +48,13 @@ what is visible, and nothing in the page can see it.
 - Rotating the phone, or locking and unlocking it, clears the state instantly.
 - A comparable page with no service worker and ordinary path URLs (txtv.nu)
   does not reproduce it.
+- **A reload of a `pushState` entry at a real path is not displaced.** Both a
+  hash link and a `pushState` make a same-document entry, so the trigger is not
+  the entry being same-document — it is specifically the reload of a *fragment*
+  entry. Path-routed apps are unaffected.
+- Two faces. Either `innerHeight` grows to the full `screen.height` while a
+  `100svh` probe still reports the slot, or every number reports the slot
+  correctly and the page is displaced anyway. Only the first is measurable.
 - Every number the page can read agrees with every other. On the reporter's
   phone (402x874 CSS px) safe-area insets were `0px`, `scrollY` 0,
   `scrollingElement.scrollTop` 0, and `visualViewport` reported 402x874 with
@@ -71,62 +79,49 @@ of the already-broken page is internally consistent.
   cannot measure.
 - **Restructuring the shell**: from `position: fixed` with a JS-written height
   into a flow box `100svh` tall with no document scroll range (`.app` at
-  `src/index.css:138-146`). It made the shell simpler and did not touch this.
+  `src/index.css:138`). It made the shell simpler and did not touch this.
 - **Giving the document a scroll range** — transiently, permanently, and from
   first paint — and then a real finger-driven scroll over that range. The
   toolbars never collapsed, because they were never in the way of the *view*.
+- **Forcing a cross-document navigation from inside the page.** This was
+  shipped as `src/viewportReset.ts`: detect the disagreement, then
+  `location.replace` the same URL with a marker query parameter so Chrome had
+  to fetch a document and run its reset, capped at two attempts in
+  `sessionStorage`. It was reverted. It could only ever fire on the first of
+  the two faces, the bug recurred through it, and when it did fire it threw
+  away a load for no confirmed benefit.
 
-The tell was there the whole time and unread: while broken, a `100svh` probe
-still measured 676 — the slot — against an `innerHeight` of 874. Chrome had
-gone full-screen-plus-insets rather than merely mis-sizing something.
+One tell went unread for a long time: while broken, a `100svh` probe still
+measured 676 — the slot — against an `innerHeight` of 874. Chrome had gone
+full-screen-plus-insets rather than merely mis-sizing something. It turned out
+to be a signature of only one of the two faces.
 
-## Solution
+## Status
 
-`src/viewportReset.ts`, called from `src/main.tsx:14` before the first render.
+**Unresolved.** No workaround is in the app. What is established:
 
-Detection needs both halves (`displaced`, `src/viewportReset.ts:61-62`): the
-viewport within two pixels of `screen.height`, **and** a `100svh` probe more
-than `SLOT_MARGIN_PX` (50, line 41) shorter than that viewport. Either alone is
-an ordinary phone — a full-screen viewport is what you get once the toolbars
-have scrolled away, and a short slot on its own says only that they are on
-their way out. The slot has to be read off a hidden probe box
-(`slotHeight`, lines 84-91) because no property reports it.
+- The mechanism above, from Chrome's own source.
+- The bug has two faces, and only one leaves a signature a page can read.
+- Only a *fragment* reload triggers it. A `pushState` entry at a real path
+  reloads clean, which is what the mechanism predicts: that reload fetches a
+  document, so the reset runs.
+- The only cures are a cross-document navigation, a rotation, or a lock and
+  unlock. Of the three only the first is available to a page, and driving it
+  from inside the page was tried and reverted (see above).
+- `chrome://flags/#fullscreen-viewport-adjustment-experiment` changes nothing
+  in any of its three states.
 
-The correction (`renavigate`, lines 129-134) is `location.replace` of the same
-URL with a marker query parameter, `omritad`. The parameter forces a document
-fetch rather than a replay of the entry, which is what makes Chrome run its
-reset; `replace` rather than `assign` keeps Back where the reader expects it;
-and `dropMarker` (lines 137-142) strips it with `replaceState` once the new
-document is running.
+A standalone repro, independent of this app, is at
+<https://github.com/plilja/chrome-ios-bug> (served from
+<https://plilja.se/chrome-ios-bug/>). It is the artefact to attach to an
+upstream report, and it is where the `pushState` result was established.
 
-`sessionStorage` caps this at two attempts (`MAX_ATTEMPTS`, line 31) and the
-counter is cleared on any load that comes up right (line 173). Every storage
-access is wrapped in `try`/`catch` (lines 99-121) — this runs before the first
-render, and a browser that blocks storage must not be handed a blank page; a
-session that cannot count gets exactly one attempt. An installed copy returns
-`settle` immediately (line 76), since it has no browser toolbars.
-
-The resize that does the damage lands a frame or two after load, so
-`resetChromeViewport` looks once and then watches `resize` for `WATCH_MS`
-(3000, line 34) in case it has not happened yet.
-
-## Why This Works
-
-The displacement lives in Chrome's own geometry, not in the page's. No
-correction expressed in what the page can measure could reach it, which is why
-ten attempts at one failed identically. What *does* reach it is a
-document-changing navigation, because that is the exact condition
-`DidFinishNavigation` tests before resetting — the same thing rotation and a
-lock/unlock achieve by other routes, and the only one of the three a page can
-perform for itself.
-
-The two-part detection is what keeps this from firing on healthy phones. `100svh`
-is defined as the toolbars-shown height, so it keeps reporting the slot even
-while Chrome has handed the page the whole screen; that disagreement between
-two numbers with different provenance is the only signature the bug has. The
-unit tests pin both halves as load-bearing (`src/viewportReset.test.ts`),
-including the two near-misses: full screen with a full-screen slot, and a short
-slot inside a short viewport.
+**The real fix available here is to stop using fragment URLs.** Routing is
+hash-based by convention (`CLAUDE.md`), chosen because GitHub Pages resolves no
+paths. Moving to path routing costs a post-build copy of `index.html` to
+`dist/404.html`, a `base` of `/` instead of `./`, and the `navigateFallback`
+already configured in `vite.config.ts`. Not done, and a deliberate open choice
+rather than an oversight.
 
 ## Prevention
 
@@ -137,7 +132,7 @@ real layout bug leaves at least one number disagreeing with another.
 **Sample the numbers over time, not once they have settled.** Ten fixes were
 aimed at settled snapshots that all said the same correct thing. The
 breakthrough came from writing a line at +0/100/300/1000/3000ms
-(`SAMPLES`, `src/components/Diagnostics.tsx:81`) and on every event that could
+(`SAMPLES`, `src/components/Diagnostics.tsx:82`) and on every event that could
 move the page — scroll, resize, pageshow, visibilitychange, touchend,
 orientationchange (line 99). That log showed a `resize` at roughly 40ms with no
 user interaction, `innerHeight` going 676 → 874 and staying, where a good load
@@ -149,17 +144,24 @@ alone is unfalsifiable, and it is the disagreement that carries the
 information.
 
 **A device-only bug needs a readout on the device.** `?diag`
-(`src/components/Diagnostics.tsx:21`) and the in-memory log (`src/log.ts`, 300
+(`src/components/Diagnostics.tsx:22`) and the in-memory log (`src/log.ts`, 300
 lines from boot) are kept in the app for this, with the log copyable to the
-clipboard (line 132 of `Diagnostics.tsx`) — that is how a phone session becomes
-a report someone else can read.
+clipboard (`KOPIERA`, line 135) — that is how a phone session becomes a report
+someone else can read.
 
 **When the cause is a browser bug, read the browser's source.** That is what
 turned "rotation fixes it" from a curiosity into a fix.
 
-**A workaround that renavigates must be capped and self-clearing.** Two
-attempts, a counter cleared on any healthy load, and storage failures that
-degrade to one attempt rather than to a blank page.
+**One clean pass is not proof.** The renavigating workaround was declared
+working on a single good reload and shipped; the bug came back. A fix for an
+intermittent, device-only bug needs repeated passes across fresh loads before
+it is believed.
+
+**A workaround aimed at half a bug is worse than none.** `viewportReset.ts` was
+careful — capped at two attempts, self-clearing, storage failures degrading to
+one attempt rather than a blank page — and still had to go, because it could
+not detect the face of the bug that has no signature, while costing a discarded
+load whenever it did fire.
 
 ## Related Issues
 
