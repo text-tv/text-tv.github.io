@@ -79,7 +79,7 @@ of the already-broken page is internally consistent.
   cannot measure.
 - **Restructuring the shell**: from `position: fixed` with a JS-written height
   into a flow box `100svh` tall with no document scroll range (`.app` at
-  `src/index.css:138`). It made the shell simpler and did not touch this.
+  `src/index.css:146`). It made the shell simpler and did not touch this.
 - **Giving the document a scroll range** — transiently, permanently, and from
   first paint — and then a real finger-driven scroll over that range. The
   toolbars never collapsed, because they were never in the way of the *view*.
@@ -134,7 +134,7 @@ aimed at settled snapshots that all said the same correct thing. The
 breakthrough came from writing a line at +0/100/300/1000/3000ms
 (`SAMPLES`, `src/components/Diagnostics.tsx:82`) and on every event that could
 move the page — scroll, resize, pageshow, visibilitychange, touchend,
-orientationchange (line 99). That log showed a `resize` at roughly 40ms with no
+orientationchange (line 100). That log showed a `resize` at roughly 40ms with no
 user interaction, `innerHeight` going 676 → 874 and staying, where a good load
 sat at 676 for the whole session and fired no resize at all.
 

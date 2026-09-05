@@ -18,7 +18,7 @@ related_components: [frontend]
 
 ## Context
 
-Tests here run at the app level under Vitest with `happy-dom` (`vite.config.ts:50`) and the network faked with msw. The swipe gesture listens for raw pointer events on the frame container, and a committed swipe arms a capture-phase `click` listener on `document` to swallow the compatibility click the browser would otherwise deliver on whatever the finger lifted over (`armSwallow` in `src/useSwipeNavigation.ts`). Without that swallow, a swipe ending over a printed teletext link also follows the link.
+Tests here run at the app level under Vitest with `happy-dom` (`vite.config.ts:66`) and the network faked with msw. The swipe gesture listens for raw pointer events on the frame container, and a committed swipe arms a capture-phase `click` listener on `document` to swallow the compatibility click the browser would otherwise deliver on whatever the finger lifted over (`armSwallow` in `src/useSwipeNavigation.ts`). Without that swallow, a swipe ending over a printed teletext link also follows the link.
 
 The test for it dispatched `pointerdown`, `pointermove`, `pointerup` and asserted the destination page. It passed. It also passed with the swallow deleted, because no `click` was ever in flight: happy-dom synthesises nothing from a pointer sequence, and a real browser derives its compatibility click from *touch* events, not from script-dispatched pointer events. The guard was never reached, in either direction.
 

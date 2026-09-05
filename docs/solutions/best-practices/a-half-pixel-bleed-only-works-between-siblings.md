@@ -21,18 +21,18 @@ related_components: [frontend]
 
 The decoded frame draws a teletext page as real text and painted boxes rather than as SVT's GIF. A *mosaic* cell is block graphics — a 2x3 grid of sextants, split by SVT at x = 6 of 13 and y = 5 and 11 of 16 — and each cell is a single `<span class="text-frame__mosaic">`, because a page carries hundreds of them.
 
-Cells are sized as a fraction of the container: `--cell-w: 2.5cqw` with `--cell-h` derived from it (`src/index.css:392-393`). No cell boundary therefore lands on a whole device pixel — at the 640px frame cap (`--frame-max`, `src/index.css:74-78`) a cell is 29.538px tall. That is deliberate, and it is what lets the 40x25 grid scale to any width.
+Cells are sized as a fraction of the container: `--cell-w: calc(100cqw / 41)` on `.frame` (`src/index.css:412`) with `--cell-h` derived from it (`src/index.css:467`). No cell boundary therefore lands on a whole device pixel — at the 640px frame cap (`--frame-max`, `src/index.css:82`) a cell is 28.818px tall. That is deliberate, and it is what lets the 40x25 grid scale to any width.
 
 The old `mosaicStyle` painted a cell as three stacked layers, one per y band, sized `100% 31.25%` / `100% 37.5%` / `100% 31.25%` at positions `0 0%` / `0 50%` / `0 100%`, each a left-to-right gradient with a hard stop at 6/13. In percentages the three tile the cell exactly, meeting at 31.25% and 68.75% of its height.
 
-They do not tile in device pixels. `.text-frame__mosaic` is `background-repeat: no-repeat` (`src/index.css:480`), so each band was an independently rasterised rectangle and the two internal boundaries were **butt joints**. Where one band's bottom rounded down and the next band's top rounded up, a sub-pixel crack opened and the element's own `background-color` showed through — thin blue hairlines cutting horizontally through the white `SVT Text` logo on page 100. The source GIF has no such lines.
+They do not tile in device pixels. `.text-frame__mosaic` is `background-repeat: no-repeat` (`src/index.css:554`), so each band was an independently rasterised rectangle and the two internal boundaries were **butt joints**. Where one band's bottom rounded down and the next band's top rounded up, a sub-pixel crack opened and the element's own `background-color` showed through — thin blue hairlines cutting horizontally through the white `SVT Text` logo on page 100. The source GIF has no such lines.
 
 Two things made it easy to miss:
 
 - **Desktop-only in practice.** The crack is at most one device pixel. At DPR 3 that is a third of a pixel of blend; at DPR 1 it is a fully visible line. A phone-shaped check passes on a bug desktop users see.
 - **The construction was never chosen as a layering decision.** It arrived from a DOM-node reduction — 159 mosaic cells on page 100 were rendering 1,113 nodes where 159 would do, so seven elements per cell collapsed into one painted from CSS layers. The sextant percentages are a restatement of the measured 13x16 glyph geometry. Nothing weighed a butt joint against an overlap; the boundary risk was never raised. *(session history)*
 
-An earlier fix had already cured this exact crack one level out. Seams *between* cells were fixed by bleeding `.text-frame__row` and the run boxes half a pixel into the neighbour that paints after them (`src/index.css:422`, `src/index.css:445`; `docs/plans/2026-08-23-2021-fix-hairline-seams-in-decoded-frame-plan.md`). The reflex is to reach for that bleed again. It does not transfer.
+An earlier fix had already cured this exact crack one level out. Seams *between* cells were fixed by bleeding `.text-frame__row` and the run boxes half a pixel into the neighbour that paints after them (`src/index.css:496`, `src/index.css:519`; `docs/plans/2026-08-23-2021-fix-hairline-seams-in-decoded-frame-plan.md`). The reflex is to reach for that bleed again. It does not transfer.
 
 ## Guidance
 
@@ -65,7 +65,7 @@ Measured, not asserted. Playwright at `deviceScaleFactor: 1`, viewport 1840x1085
 
 The measuring script was ad hoc and is not in the repo, so those two numbers cannot be re-derived by running something — the method above is the reproducible part. `CLAUDE.local.md` documents the Playwright setup it needs.
 
-A green suite proves nothing here — `src/index.css` is imported only by `src/main.tsx` and happy-dom computes no layout (`the-suite-never-loads-the-stylesheet-so-a-green-run-is-silent-about-layout.md`). What the DOM *can* see is pinned by an app-level test (`src/app.test.tsx:193`): every `.text-frame__mosaic` carries `backgroundSize` exactly `calc(100% * 6 / 13) 100%, 100% 100%` and exactly two gradients, plus one asymmetric cell fixing the bit-to-side mapping. It was mutation-tested — reversing the layers and swapping the sides each turn it red — because an assertion about a construction the suite cannot render is worth only what its failure modes prove.
+A green suite proves nothing here — `src/index.css` is imported only by `src/main.tsx` and happy-dom computes no layout (`the-suite-never-loads-the-stylesheet-so-a-green-run-is-silent-about-layout.md`). What the DOM *can* see is pinned by an app-level test (`src/app.test.tsx:202`): every `.text-frame__mosaic` carries `backgroundSize` exactly `calc(100% * 6 / 13) 100%, 100% 100%` and exactly two gradients, plus one asymmetric cell fixing the bit-to-side mapping. It was mutation-tested — reversing the layers and swapping the sides each turn it red — because an assertion about a construction the suite cannot render is worth only what its failure modes prove.
 
 Two limits, stated rather than glossed:
 
