@@ -71,9 +71,15 @@
     var(--viewport-height) - var(--freshness-height) - var(--rail-height) -
       var(--bar-height) - env(safe-area-inset-top, 0px) - var(--bar-inset)
   );
+  /*
+   * 39.84 columns' worth of native px (39.84 * 13), shared with `.frame`'s
+   * own aspect-ratio below - one source for the "columns actually used"
+   * number this margin change is built on.
+   */
+  --frame-w-native: 517.92;
   --frame-max: clamp(
     560px,
-    calc((var(--frame-budget) - 2px) * 517.92 / (400 * var(--leading))),
+    calc((var(--frame-budget) - 2px) * var(--frame-w-native) / (400 * var(--leading))),
     640px
   );
   --ink: #ffffff;
@@ -390,10 +396,15 @@ body {
 .frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 517.92 / calc(400 * var(--leading));
+  aspect-ratio: var(--frame-w-native) / calc(400 * var(--leading));
   container-type: inline-size;
   overflow-x: hidden;
   --cell-w: calc(100cqw / 39.84);
+  /* Shared with `.frame__gif`, `.text-frame`, and `.hotspots` below - one
+     source for the hang offset and the widened box, so retuning either
+     number can't drift out of sync between the three. */
+  --frame-left: calc(var(--cell-w) * -0.58);
+  --frame-width: calc(var(--cell-w) * 40);
 }
 
 /* The GIF is a picture of the broadcast cell, so it keeps the broadcast box. */
@@ -411,8 +422,8 @@ body {
  */
 .frame__gif {
   position: absolute;
-  left: calc(var(--cell-w) * -0.58);
-  width: calc(var(--cell-w) * 40);
+  left: var(--frame-left);
+  width: var(--frame-width);
   height: 100%;
   image-rendering: pixelated;
 }
@@ -431,9 +442,9 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--cell-w) * -0.58);
+  left: var(--frame-left);
   right: auto;
-  width: calc(var(--cell-w) * 40);
+  width: var(--frame-width);
   overflow: hidden;
   background: #000;
   font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -592,8 +603,8 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--cell-w) * -0.58);
-  width: calc(var(--cell-w) * 40);
+  left: var(--frame-left);
+  width: var(--frame-width);
   pointer-events: none;
 }
 
