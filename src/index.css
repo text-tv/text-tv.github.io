@@ -42,6 +42,13 @@
    */
   --leading: 1.5;
   /*
+   * A drawn frame in broadcast pixels: 41 cells of 13. The page inside it is
+   * the broadcast's own 520 (40 cells); the spare cell is the app's margin.
+   * Named once because three rules derive from it and nothing checks that
+   * they agree.
+   */
+  --frame-native-w: 533;
+  /*
    * The reading column, sized by the height it is given rather than by a fixed
    * width. A drawn frame is 41 cells - 533 x 400*leading - so the width a
    * height allows is that height x 533 / (400 * leading). The picture inside it
@@ -74,7 +81,7 @@
   );
   --frame-max: clamp(
     560px,
-    calc((var(--frame-budget) - 2px) * 533 / (400 * var(--leading))),
+    calc((var(--frame-budget) - 2px) * var(--frame-native-w) / (400 * var(--leading))),
     640px
   );
   --ink: #ffffff;
@@ -388,21 +395,22 @@ body {
  * the broadcast's blank column 0 on the left. A bar then runs from edge 1 to
  * edge 40 with one cell of black either side.
  *
- * Hiding column 0 instead would even the bars for free, and an earlier attempt
- * did exactly that. It is not free: column 0 is blank on bar rows but text
- * rows use it for the `*` markers a page's own legend points readers at, so
- * hiding it drops content. The cost of doing it this way is that a cell is
- * 1/41 of the width rather than 1/40 - 2.4% smaller type on every page.
+ * Hiding column 0 instead would even the bars for free. It is not free: column
+ * 0 is blank on bar rows but text rows use it for the `*` markers a page's own
+ * legend points readers at, so hiding it drops content. The cost of doing it
+ * this way is that a cell is 1/41 of the width rather than 1/40 - 2.4% smaller
+ * type on every page.
  *
  * This is the query container: a cell is a fraction of *this* box, while the
- * page layers below are 40 of those cells and cannot size themselves.
+ * page layers below are `--page-w` wide and cannot size themselves.
  */
 .frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 533 / calc(400 * var(--leading));
+  aspect-ratio: var(--frame-native-w) / calc(400 * var(--leading));
   container-type: inline-size;
   --cell-w: calc(100cqw / 41);
+  --page-w: calc(var(--cell-w) * 40);
 }
 
 /*
@@ -413,13 +421,14 @@ body {
  * drawn 2.5% tall.
  */
 .frame:has(.frame__gif) {
-  aspect-ratio: 533 / 400;
+  aspect-ratio: var(--frame-native-w) / 400;
 }
 
 .frame__gif {
   position: absolute;
+  top: 0;
   left: 0;
-  width: calc(var(--cell-w) * 40);
+  width: var(--page-w);
   height: 100%;
   image-rendering: pixelated;
 }
@@ -443,7 +452,7 @@ body {
   bottom: 0;
   left: 0;
   right: auto;
-  width: calc(var(--cell-w) * 40);
+  width: var(--page-w);
   overflow: hidden;
   background: #000;
   font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -611,7 +620,7 @@ body {
   bottom: 0;
   left: 0;
   right: auto;
-  width: calc(var(--cell-w) * 40);
+  width: var(--page-w);
   pointer-events: none;
 }
 
