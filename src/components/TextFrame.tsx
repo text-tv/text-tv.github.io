@@ -113,7 +113,8 @@ export function TextFrame({ rows, gifDataUrl, changed = [], fading = false }: Pr
             <RunElement key={run.col} run={run} gifDataUrl={gifDataUrl} />
           ))}
           {/*
-            Last, not first. Column 0 is blank on every SVT page, but blank is
+            Last, not first. Column 0 is the column the full-width bars leave
+            blank - though text rows do use it for `*` markers - and blank is
             not nothing: the resolver emits it as a run of spaces carrying an
             opaque background, and runs are given no stacking order on purpose
             (see the bleed note in the stylesheet), so paint order is all there
