@@ -43,8 +43,9 @@
   --leading: 1.5;
   /*
    * The reading column, sized by the height it is given rather than by a fixed
-   * width. A frame is 520 x 400*leading, so the width a height allows is that
-   * height x 520 / (400 * leading). The column's own 100% competes with it and
+   * width. A drawn frame is 41 cells - 533 x 400*leading - so the width a
+   * height allows is that height x 533 / (400 * leading). The picture inside it
+   * is still the broadcast's 520. The column's own 100% competes with this and
    * the smaller wins, so a portrait phone is bound by its width as before while
    * an iPad stops leaving half its height black.
    *
@@ -61,8 +62,8 @@
    * chrome would clamp to zero and blank the page. Reading a tall page by
    * scrolling is what those screens did before and is the better answer.
    *
-   * The 640px ceiling is the other end of the same argument. A frame is 520px
-   * by broadcast, so past that the cells are only being magnified. An iPad held
+   * The 640px ceiling is the other end of the same argument. A frame is 533px
+   * at native cell size, so past that the cells are only being magnified. An iPad held
    * upright has the height for a 920px column and it reads as blown up rather
    * than generous, so the column stops a fifth above native - about where a
    * landscape iPad's own budget lands it anyway.
@@ -73,7 +74,7 @@
   );
   --frame-max: clamp(
     560px,
-    calc((var(--frame-budget) - 2px) * 520 / (400 * var(--leading))),
+    calc((var(--frame-budget) - 2px) * 533 / (400 * var(--leading))),
     640px
   );
   --ink: #ffffff;
@@ -378,26 +379,47 @@ body {
 /* Teletext frames */
 
 /*
- * Full bleed: the frame takes the whole column so the type is drawn as large
- * as the screen allows. SVT leaves column 0 of a row blank but runs the
- * full-width bars flush to column 39, so the ink sits one cell right of
- * centre. That cell is the page's own margin, not the app's, and giving it
- * back on the right would cost every page a column of size.
+ * One cell wider than the page it draws.
+ *
+ * SVT runs its full-width bars across columns 1-39, leaving column 0 blank, so
+ * a full-bleed page puts a whole cell of black to the left of every bar and
+ * none to its right. The frame is therefore 41 cells and the 40-column page
+ * sits flush left, which leaves the app a blank cell on the right to balance
+ * the broadcast's blank column 0 on the left. A bar then runs from edge 1 to
+ * edge 40 with one cell of black either side.
+ *
+ * Hiding column 0 instead would even the bars for free, and an earlier attempt
+ * did exactly that. It is not free: column 0 is blank on bar rows but text
+ * rows use it for the `*` markers a page's own legend points readers at, so
+ * hiding it drops content. The cost of doing it this way is that a cell is
+ * 1/41 of the width rather than 1/40 - 2.4% smaller type on every page.
+ *
+ * This is the query container: a cell is a fraction of *this* box, while the
+ * page layers below are 40 of those cells and cannot size themselves.
  */
 .frame {
   position: relative;
   width: 100%;
-  aspect-ratio: 520 / calc(400 * var(--leading));
+  aspect-ratio: 533 / calc(400 * var(--leading));
+  container-type: inline-size;
+  --cell-w: calc(100cqw / 41);
 }
 
-/* The GIF is a picture of the broadcast cell, so it keeps the broadcast box. */
+/*
+ * The GIF is a picture of the broadcast cell, so it keeps the broadcast box -
+ * but it now fills 40 of the frame's 41 cells, so the frame's own ratio is
+ * 13/10 x 41/40. At 520/400 the frame would be taller than the picture and,
+ * since the image is stretched to the frame's height, every pixel would be
+ * drawn 2.5% tall.
+ */
 .frame:has(.frame__gif) {
-  aspect-ratio: 520 / 400;
+  aspect-ratio: 533 / 400;
 }
 
 .frame__gif {
-  display: block;
-  width: 100%;
+  position: absolute;
+  left: 0;
+  width: calc(var(--cell-w) * 40);
   height: 100%;
   image-rendering: pixelated;
 }
@@ -405,15 +427,23 @@ body {
 /*
  * The decoded page, drawn as text on the GIF's own geometry.
  *
- * The frame is the query container, so one cell is a fixed fraction of its
- * width (13/520) and everything - position, size and type - is derived from
- * that. The grid therefore fills exactly the box the GIF used to, at any
- * column width, without measuring anything in JavaScript.
+ * `.frame` is the query container, so one cell is a fixed fraction of *its*
+ * width (1/41) and everything - position, size and type - is derived from
+ * that. This box is 40 of those cells, flush left, leaving the frame's spare
+ * cell on the right as the app's own margin. The grid therefore fills exactly
+ * the box the GIF fills, at any column width, without measuring anything in
+ * JavaScript.
+ *
+ * `overflow: hidden` clips the half-pixel bleed the rows and runs below add,
+ * which is also what keeps the right-hand margin exactly one cell.
  */
 .text-frame {
   position: absolute;
-  inset: 0;
-  container-type: inline-size;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: auto;
+  width: calc(var(--cell-w) * 40);
   overflow: hidden;
   background: #000;
   font-family: 'Inconsolata', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -425,7 +455,6 @@ body {
    */
   --type-scale: 1.15;
   font-stretch: calc(150% / var(--type-scale));
-  --cell-w: 2.5cqw;
   --cell-h: calc(var(--cell-w) * 16 / 13 * var(--leading));
   /*
    * One glyph has to occupy exactly one 13px column, and a face's advance is a
@@ -536,11 +565,18 @@ body {
 }
 
 /*
- * A row a refresh brought back different, marked in column 0 - the one cell
- * SVT leaves blank on every page, so the mark costs no character and never
- * sits on top of text. It is the row's last child, because the blank column is
- * still painted (as a run of spaces with an opaque background) and runs carry
- * no stacking order: paint order is what keeps the mark visible.
+ * A row a refresh brought back different, marked in column 0 - the column the
+ * full-width bars leave blank. It is not blank on every row: text rows use it
+ * for the `*` markers a page's legend explains, so on such a row the mark
+ * briefly draws over part of that glyph until it fades. Living in the frame's
+ * own spare cell instead would avoid that, but the mark is a child of the row
+ * and the row is clipped to the page, so moving it there needs the mark lifted
+ * out of the row - which would also cost it the row's scaleY. Not worth it for
+ * a mark that is gone in under two seconds.
+ *
+ * It is the row's last child, because the blank column is still painted (as a
+ * run of spaces with an opaque background) and runs carry no stacking order:
+ * paint order is what keeps the mark visible.
  *
  * It inherits the row's scaleY, which is right - a changed double-height line
  * is two grid rows tall and its mark should say so.
@@ -560,13 +596,22 @@ body {
 }
 
 /*
- * The layer spans the whole frame but must not swallow the drag: the page
- * underneath is real text now, and a transparent sheet over all of it would
- * make the page unselectable. Only the links themselves take the pointer.
+ * The layer spans the page - not the frame - because its links are positioned
+ * as percentages of the broadcast's own 40-column picture (see imageMap.ts).
+ * Give it the frame's full 41 cells and every mark and tap target drifts off
+ * the digits it belongs to.
+ *
+ * It must not swallow the drag: the page underneath is real text now, and a
+ * transparent sheet over all of it would make the page unselectable. Only the
+ * links themselves take the pointer.
  */
 .hotspots {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: auto;
+  width: calc(var(--cell-w) * 40);
   pointer-events: none;
 }
 
