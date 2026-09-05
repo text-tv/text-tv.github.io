@@ -3,12 +3,22 @@ title: Frame Margins - Plan
 type: fix
 date: 2026-09-05
 artifact_contract: ce-unified-plan/v1
-artifact_readiness: implementation-ready
+artifact_readiness: superseded
 product_contract_source: ce-plan-bootstrap
 execution: code
 ---
 
 # Frame Margins - Plan
+
+> **Superseded — do not implement.** This plan rests on the premise that SVT leaves column 0
+> blank on every page. It does not: text rows use column 0 for the `*` markers a page's legend
+> explains. The geometry here hung column 0 off the frame and clipped it, which dropped those
+> markers; it shipped and was reverted in `36413e0`.
+>
+> Replaced by `docs/plans/2026-09-05-1610-fix-even-bar-margins-41-cell-frame-plan.md`, which
+> reaches the same goal by widening the frame to 41 cells instead of hiding a column.
+>
+> Kept as the record of what was tried and why it failed.
 
 ## Goal Capsule
 

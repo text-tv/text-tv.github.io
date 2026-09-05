@@ -135,8 +135,8 @@ const firstDrawnCell = (
 /**
  * Repaints one 13x16 cell, black behind whichever damage the test asked for,
  * so the rest of the page still decodes as itself. Which cell depends on the
- * damage: the top-left one is blank on every page, which is what makes it
- * useful for a row that can no longer be aligned.
+ * damage: the top-left one is blank in the captured fixtures, which is what
+ * makes it useful for a row that can no longer be aligned.
  */
 const damageOneCell = (rgba: Uint8ClampedArray, width: number, height: number): void => {
   if (damage === 'unseen-glyph') {

@@ -18,7 +18,9 @@ related_components: [frontend]
 
 ## Context
 
-SVT leaves column 0 blank on every page. That makes it the obvious place to put anything the app wants to add to a row without costing a character — a changed-row mark, a marker, an indicator — and the plan for the refresh feature says exactly that: the mark "costs no character and never sits on top of text" (`docs/plans/2026-08-26-1826-feat-refresh-a-page-plan.md`).
+SVT's full-width bars leave column 0 blank, and it is blank on most rows. That makes it the obvious place to put anything the app wants to add to a row without costing a character — a changed-row mark, a marker, an indicator — and the plan for the refresh feature says exactly that: the mark "costs no character and never sits on top of text" (`docs/plans/2026-08-26-1826-feat-refresh-a-page-plan.md`).
+
+That last claim is too strong, and a later change learned it the hard way: column 0 is *not* blank on every row. Text rows use it for the `*` markers a page's own legend explains (`* = efter kl 15` on page 300, `* = efter kl 12` on page 104; see `fixtures/raw_104.json` rows 13 and 15 and `fixtures/raw_105.json` row 10). A change that treated column 0 as always-blank and hung it off the frame clipped those markers and was reverted — see `docs/plans/2026-09-05-1458-fix-frame-margins-plan.md`. The lesson below is unaffected: it is about the renderer, not about what the broadcast puts there.
 
 The reasoning is right about the page and wrong about the renderer. A blank column is blank *in the broadcast*; it is not absent from the DOM. `RowBuilder.space()` in `src/teletext/resolve.ts` emits a leading run of spaces, and that run carries the cell's background as a real, opaque colour, which `TextFrame` renders as a `backgroundColor` on an absolutely-positioned box. Column 0 arrives at the browser as a painted rectangle like any other.
 
