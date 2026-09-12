@@ -367,8 +367,12 @@ body {
 /*
  * A page's own box, and the only scroll container in the app - the scroll sits
  * here rather than on .content so a neighbour is never left hanging above the
- * viewport on a page the reader has scrolled down. The hairlines are the rail's,
- * and read the sheet's edge against the black gutter between two of them.
+ * viewport on a page the reader has scrolled down.
+ *
+ * It draws no edge of its own. Hairlines down both sides used to mark where
+ * one sheet ended and the gutter began during a swipe, but a page is still
+ * and being read far more of the time than it is being dragged, and at rest
+ * they read as a box around the picture.
  */
 .swipe-sheet {
   position: absolute;
@@ -379,8 +383,6 @@ body {
   overflow-y: auto;
   /* The body no longer clips, so a sheet's own rubber band stays its own. */
   overscroll-behavior: contain;
-  border-left: 1px solid #1c1c1c;
-  border-right: 1px solid #1c1c1c;
 }
 
 /* One content width plus the gutter out, on either side. */
@@ -710,7 +712,6 @@ body {
   height: var(--rail-height);
   padding: 0 12px;
   background: #000;
-  border-top: 1px solid #1c1c1c;
   overflow-x: auto;
   overflow-y: hidden;
   /* The sideways rubber band belongs to the rail, not to the page behind it. */
@@ -730,9 +731,8 @@ body {
 /*
  * font: inherit or the UA's own button font wins and the monospace is lost.
  *
- * The item stretches to the band rather than naming a height of its own: the
- * boxes are border-box and the rail's hairline has already eaten a pixel, so
- * asking for --rail-height again would overflow the row it sits in.
+ * The item stretches to the band rather than naming a height of its own, so
+ * it cannot disagree with the row it sits in.
  */
 .rail__item {
   display: flex;
@@ -873,7 +873,6 @@ body {
   height: calc(var(--bar-height) + var(--bar-inset));
   padding: 0 0 var(--bar-inset);
   background: #000;
-  border-top: 1px solid #1c1c1c;
 }
 
 /*
