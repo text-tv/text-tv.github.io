@@ -50,12 +50,14 @@
    *
    * It is also the one number that distorts the block graphics, since a
    * mosaic fills its cell and has no type to be set larger: the SVT Text
-   * logo stands 3 x 16/13 x this tall, against 3 x 16/13 broadcast. 1.78 was
-   * tried, for a cell of txtv.nu's own 2.19 proportions, and stretched the
-   * logo a fifth past what it had been. How full the type looks is
-   * --type-scale's doing rather than this one's, so the trade is not needed.
+   * logo stands 3 x 16/13 x this tall, against 3 x 16/13 broadcast. That is
+   * what bounds it from above. 1.78, for a cell of txtv.nu's own 2.19
+   * proportions, stretched the logo a fifth past what it had been and was
+   * visibly wrong; 1.6 costs the logo 7% and buys paragraphs that read as
+   * blocks rather than as one run of lines. How full the type looks is
+   * --type-scale's doing rather than this one's, so the two are not a trade.
    */
-  --leading: 1.5;
+  --leading: 1.6;
   /*
    * A drawn frame in broadcast pixels: 41 cells of 13. The page inside it is
    * the broadcast's own 520 (40 cells); the spare cell is the app's margin.
