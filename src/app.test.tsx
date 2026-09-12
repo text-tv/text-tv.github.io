@@ -125,6 +125,30 @@ const swipe = (dx: number) => {
 /** Long enough for anything the app was going to do on its own to have run. */
 const settled = () => new Promise((resolve) => setTimeout(resolve, 50))
 
+/**
+ * How many pages have been asked for, once opening one has stopped asking for
+ * more.
+ *
+ * Opening a page fetches it, both neighbours, and the page the neighbour names
+ * - four requests for 104 - and each link is only issued when the one before
+ * it lands. The chain therefore outlives the first drawn frame, so a baseline
+ * taken there is still climbing, and whatever the test does next gets the
+ * blame for a request that was always coming. That is a real flake: the
+ * gesture-abort tests failed roughly one run in eight this way.
+ *
+ * Two quiet windows rather than one, because a single quiet window is only
+ * evidence that no request landed in it - which is also true midway through a
+ * chain on a loaded machine.
+ */
+const requestsSettled = async (): Promise<number> => {
+  for (let quiet = 0; ; ) {
+    const seen = requestedPages().length
+    await settled()
+    quiet = requestedPages().length === seen ? quiet + 1 : 0
+    if (quiet === 2) return requestedPages().length
+  }
+}
+
 describe('läsa en sida', () => {
   it('visar sida 100 som riktig text, inte som bild', async () => {
     openOn('100')
@@ -1529,7 +1553,7 @@ describe('grannarna vid sidan om', () => {
     unmount()
 
     // 104 was stored as the page the reader read; now it is 105's neighbour.
-    const before = requestedPages().length
+    const before = await requestsSettled()
     openOn('105')
     await drawnFrames(1)
     await settled()
@@ -1619,7 +1643,7 @@ describe('grannarna vid sidan om', () => {
     openOn('104')
     await drawnFrames(1)
     await waitFor(() => expect(requestedPages()).toHaveLength(4))
-    const before = requestedPages().length
+    const before = await requestsSettled()
 
     swipe(-120)
     await currentPage('105')
@@ -1664,7 +1688,7 @@ describe('grannarna vid sidan om', () => {
     await drawnFrames(1)
     await settled()
 
-    const before = requestedPages().length
+    const before = await requestsSettled()
     swipe(120)
     await currentPage('104')
     await drawnFrames(1)
@@ -2034,7 +2058,7 @@ describe('färskhet och cache', () => {
 
   it('hämtar inte om grannen som förhämtningen nyss lade i lagringen', async () => {
     await withNeighbourFetched()
-    const before = requestedPages().length
+    const before = await requestsSettled()
 
     swipe(-120)
     await currentPage('105')
@@ -2052,7 +2076,7 @@ describe('färskhet och cache', () => {
     // foreground return asks for something newer than a minute.
     await withNeighbourFetched()
     letTimePass(fiveMinutes)
-    const before = requestedPages().length
+    const before = await requestsSettled()
 
     swipe(-120)
     await currentPage('105')
@@ -2066,7 +2090,7 @@ describe('färskhet och cache', () => {
   it('hämtar om grannen vars kopia hunnit bli gammal', async () => {
     await withNeighbourFetched()
     letTimePass(anHourAndAHalf)
-    const before = requestedPages().length
+    const before = await requestsSettled()
 
     holdPage('105')
     swipe(-120)
@@ -2090,7 +2114,7 @@ describe('färskhet och cache', () => {
     unmount()
 
     letTimePass(anHourAndAHalf)
-    const before = requestedPages().length
+    const before = await requestsSettled()
     openOn('104')
     await drawnFrames(1)
     await waitFor(() => expect(requestedPages().slice(before)).toContain('105'))
@@ -2165,7 +2189,7 @@ describe('färskhet och cache', () => {
 
     // The load that was skipped must not have left itself marked in flight,
     // or the guard below would swallow the revalidation.
-    const before = requestedPages().length
+    const before = await requestsSettled()
     letTimePass(fiveMinutes)
     document.dispatchEvent(new Event('visibilitychange'))
 
@@ -2251,7 +2275,7 @@ describe('när lagringen är full', () => {
     await waitFor(() => expect(requestedPages()).toContain('105'))
     await new Promise((resolve) => setTimeout(resolve, 50))
 
-    const before = requestedPages().length
+    const before = await requestsSettled()
     swipe(-120)
     await currentPage('105')
     await new Promise((resolve) => setTimeout(resolve, 50))
@@ -2419,7 +2443,7 @@ describe('uppdatera sidan', () => {
     it('frågar SVT igen fast sidan hämtades nyss', async () => {
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       await userEvent.click(refreshButton())
 
@@ -2431,7 +2455,7 @@ describe('uppdatera sidan', () => {
       openOn('104')
       await drawnFrames(1)
       holdPage('104')
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       await userEvent.click(refreshButton())
       await waitFor(() => expect(refreshButton()).toHaveAttribute('aria-disabled', 'true'))
@@ -2507,7 +2531,7 @@ describe('uppdatera sidan', () => {
       for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
       window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
       holdPage('104')
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       document.dispatchEvent(new Event('visibilitychange'))
 
@@ -2602,7 +2626,7 @@ describe('uppdatera sidan', () => {
     it('fördröjer inte hämtningen, bara hur länge den syns', async () => {
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       await userEvent.click(refreshButton())
 
@@ -2636,7 +2660,7 @@ describe('uppdatera sidan', () => {
     it('frågar SVT igen när dragningen släpps förbi tröskeln', async () => {
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       pullBy(60)
 
@@ -2646,7 +2670,7 @@ describe('uppdatera sidan', () => {
     it('gör ingenting när dragningen släpps före tröskeln', async () => {
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       pullBy(20)
 
@@ -2657,7 +2681,7 @@ describe('uppdatera sidan', () => {
     it('lämnar en dragning uppåt till sidans egen rullning', async () => {
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       pullBy(-80)
 
@@ -2675,7 +2699,7 @@ describe('uppdatera sidan', () => {
       await drawnFrames(14, 10000)
       const sheet = document.querySelector('.swipe-sheet--current') as HTMLElement
       Object.defineProperty(sheet, 'scrollTop', { value: 120, configurable: true })
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       pullBy(60)
 
@@ -2735,7 +2759,7 @@ describe('uppdatera sidan', () => {
     ])('stänger remsan när gesten avbryts av %s', async (_name, abort) => {
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       pullBy(60, { release: false })
       await waitFor(() => expect(pullTrack().style.transform).not.toBe(''))
@@ -2753,7 +2777,7 @@ describe('uppdatera sidan', () => {
       holdPage('104')
       await userEvent.click(refreshButton())
       await waitFor(() => expect(refreshButton()).toHaveAttribute('aria-disabled', 'true'))
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       pullBy(60, { release: false })
       // Not merely refused at release: the strip never follows the finger, so
@@ -2798,7 +2822,7 @@ describe('uppdatera sidan', () => {
       try {
         openOn('104')
         await drawnFrames(1)
-        const before = requestedPages().length
+        const before = await requestsSettled()
 
         const target = container()
         fire(target, 'pointerdown', 200, 100, 0)
@@ -2896,7 +2920,7 @@ describe('uppdatera sidan', () => {
       Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
       openOn('104')
       await drawnFrames(1)
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       const target = container()
       fire(target, 'pointerdown', 20, 100, 0)
@@ -2949,7 +2973,7 @@ describe('uppdatera sidan', () => {
       for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
       window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
       reframe('377', '331')
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       document.dispatchEvent(new Event('visibilitychange'))
 
@@ -3071,7 +3095,7 @@ describe('uppdatera sidan', () => {
       for (const page of Object.keys(index)) index[page] = Date.now() - 5 * 60 * 1000
       window.localStorage.setItem('texttv:fetched', JSON.stringify(index))
       reframe('377', '331')
-      const before = requestedPages().length
+      const before = await requestsSettled()
 
       document.dispatchEvent(new Event('visibilitychange'))
 
