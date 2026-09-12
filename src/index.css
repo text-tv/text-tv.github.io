@@ -1,14 +1,22 @@
 /*
- * Inconsolata, a humanist monospace, in its variable-width cut. Teletext cells
- * are 13x16, so a face has to be far wider than a normal mono to fill one: the
- * wdth axis at 150% puts the advance at exactly 0.75em, the ratio the grid
- * below is built on. SIL Open Font License; the licence is in misc/. The url is
- * relative so it survives a project-path base.
+ * Inconsolata, a humanist monospace, variable on both width and weight. The
+ * advance tracks the wdth axis linearly at wdth/200 em - 100% sets 0.5em,
+ * 150% sets 0.75em - so any width the grid asks for is one number. The cap
+ * height does not move with it, which is why the grid narrows the face and
+ * grows the size rather than setting type at the cell's own width.
+ *
+ * The weight range is declared because the file carries a wght axis: a
+ * single-value descriptor pins the axis at that value and leaves the browser
+ * to fake anything bolder, which on a pixel grid smears the stems. One file
+ * covers the whole range, so naming it costs no extra request.
+ *
+ * SIL Open Font License; the licence is in misc/. The url is relative so it
+ * survives a project-path base.
  */
 @font-face {
   font-family: 'Inconsolata';
   src: url('../inconsolata.woff2') format('woff2-variations');
-  font-weight: 400;
+  font-weight: 200 900;
   font-stretch: 50% 200%;
   font-display: swap;
 }
@@ -37,10 +45,15 @@
   /*
    * Extra height per teletext row. The cell is 13x16 by broadcast, which packs
    * the lines tighter than a screen wants them; the rows are drawn on a taller
-   * cell and the frame grows to match, so the grid stays whole. 1.4-1.6 reads
-   * comfortably; past about 1.8 the doubled rows look stretched.
+   * cell and the frame grows to match, so the grid stays whole.
+   *
+   * 1.78 puts the cell at 2.19 high per unit wide, which is what txtv.nu sets
+   * its own grid to and the proportion the frame was measured against. It is
+   * as far as this can go: past about 1.8 the doubled rows look stretched.
+   * Raising it alone does not make the type fill the taller cell - that is
+   * --type-scale's job, and the two are set together.
    */
-  --leading: 1.5;
+  --leading: 1.78;
   /*
    * A drawn frame in broadcast pixels: 41 cells of 13. The page inside it is
    * the broadcast's own 520 (40 cells); the spare cell is the app's margin.
@@ -459,19 +472,31 @@ body {
   /*
    * Type is set larger than the cell and narrowed by the same factor, so it
    * grows taller without growing wider: the wdth axis takes back on the width
-   * exactly what the size adds. The advance therefore still lands on 13px and
-   * the columns do not move - only the letters get their height back.
+   * exactly what the size adds. The advance therefore still lands on one cell
+   * and the columns do not move - only the letters get their height back.
+   *
+   * The factor is what decides how full the cell looks, because the cap height
+   * is fixed in em and only the size moves it: at 1.43 the face sits at wdth
+   * 105% and a capital stands 1.19 advances tall, the proportion txtv.nu sets.
+   * The reference stretch of 150% below is the width --advance was measured
+   * at, not a width anything is drawn at any more.
    */
-  --type-scale: 1.15;
+  --type-scale: 1.43;
   font-stretch: calc(150% / var(--type-scale));
   --cell-h: calc(var(--cell-w) * 16 / 13 * var(--leading));
   /*
-   * One glyph has to occupy exactly one 13px column, and a face's advance is a
-   * property of its design: Inconsolata at 150% width sets 0.75em, so a
-   * cell's worth of type is the cell divided by that. Swapping in another
-   * face means changing this one number to its advance ratio - the run's
-   * letter-spacing then takes up whatever slack is left, so the grid stays
-   * exact either way.
+   * One glyph has to occupy exactly one cell, and a face's advance is a
+   * property of its design: Inconsolata sets 0.75em at the 150% width this
+   * pair of numbers is anchored to, so a cell's worth of type is the cell
+   * divided by that and multiplied back up by --type-scale. The two are a
+   * pair - a face that sets a different advance at 150% needs this number
+   * changed with it, or the columns drift.
+   *
+   * Drift is bounded rather than absent: the engine rounds the advance it
+   * actually sets, so a glyph lands a few percent under its cell at the sizes
+   * a phone uses. The run's letter-spacing takes up whatever slack is left -
+   * measured at 5.6% of a cell, the same before this pair was retuned as
+   * after - so the columns are exact either way.
    */
   --advance: 0.75;
 }
@@ -496,6 +521,13 @@ body {
   height: calc(var(--cell-h) + 0.5px);
   font-size: calc(var(--cell-w) / var(--advance) * var(--type-scale));
   line-height: var(--cell-h);
+  /*
+   * Light, because the face is now set wider than the cell and narrowed back:
+   * at the regular weight the stems thicken with the size and the page reads
+   * heavier than the broadcast. 300 is a real instance of the file's wght
+   * axis, not a faked one - see the @font-face at the top.
+   */
+  font-weight: 300;
 }
 
 /*
@@ -507,6 +539,13 @@ body {
 .text-frame__row--double {
   transform: scaleY(2);
   transform-origin: top left;
+  /*
+   * Heavier, because scaleY(2) stretches the stems' height but not their
+   * width, so a headline set at the body weight looks thinner than the text
+   * under it. The advance is untouched by wght, so the row still measures 40
+   * columns.
+   */
+  font-weight: 600;
 }
 
 .text-frame__run,
