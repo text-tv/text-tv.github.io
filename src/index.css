@@ -5,10 +5,10 @@
  * height does not move with it, which is why the grid narrows the face and
  * grows the size rather than setting type at the cell's own width.
  *
- * The weight range is declared because the file carries a wght axis: a
- * single-value descriptor pins the axis at that value and leaves the browser
- * to fake anything bolder, which on a pixel grid smears the stems. One file
- * covers the whole range, so naming it costs no extra request.
+ * The weight range is declared because the file carries a wght axis, and the
+ * rows ask for a weight off 400: a single-value descriptor pins the axis at
+ * that value, so the request is silently clamped and nothing changes. One
+ * file covers the whole range, so naming it costs no extra request.
  *
  * SIL Open Font License; the licence is in misc/. The url is relative so it
  * survives a project-path base.
@@ -45,15 +45,17 @@
   /*
    * Extra height per teletext row. The cell is 13x16 by broadcast, which packs
    * the lines tighter than a screen wants them; the rows are drawn on a taller
-   * cell and the frame grows to match, so the grid stays whole.
+   * cell and the frame grows to match, so the grid stays whole. 1.4-1.6 reads
+   * comfortably; past about 1.8 the doubled rows look stretched.
    *
-   * 1.78 puts the cell at 2.19 high per unit wide, which is what txtv.nu sets
-   * its own grid to and the proportion the frame was measured against. It is
-   * as far as this can go: past about 1.8 the doubled rows look stretched.
-   * Raising it alone does not make the type fill the taller cell - that is
-   * --type-scale's job, and the two are set together.
+   * It is also the one number that distorts the block graphics, since a
+   * mosaic fills its cell and has no type to be set larger: the SVT Text
+   * logo stands 3 x 16/13 x this tall, against 3 x 16/13 broadcast. 1.78 was
+   * tried, for a cell of txtv.nu's own 2.19 proportions, and stretched the
+   * logo a fifth past what it had been. How full the type looks is
+   * --type-scale's doing rather than this one's, so the trade is not needed.
    */
-  --leading: 1.78;
+  --leading: 1.5;
   /*
    * A drawn frame in broadcast pixels: 41 cells of 13. The page inside it is
    * the broadcast's own 520 (40 cells); the spare cell is the app's margin.
@@ -539,13 +541,6 @@ body {
 .text-frame__row--double {
   transform: scaleY(2);
   transform-origin: top left;
-  /*
-   * Heavier, because scaleY(2) stretches the stems' height but not their
-   * width, so a headline set at the body weight looks thinner than the text
-   * under it. The advance is untouched by wght, so the row still measures 40
-   * columns.
-   */
-  font-weight: 600;
 }
 
 .text-frame__run,
